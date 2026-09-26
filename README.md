@@ -15,13 +15,16 @@ npm run dev        # Vite :5173 + PartyKit :1999
 
 Open http://localhost:5173 — use **Online → Create room**, then join from another tab with the code.
 
-## Deploy PartyKit
+## Deploy
+
+**Frontend (Vercel):** connect the GitHub repo. Output is `dist` (see `vercel.json`).  
+For online play, set env `VITE_PARTYKIT_HOST` to your PartyKit host (no `https://`).
+
+**PartyKit rooms:**
 
 ```bash
 npm run deploy:party
 ```
-
-Set `VITE_PARTYKIT_HOST` to your deployed host (e.g. `pokerflipper.<user>.partykit.dev`) when building the frontend for production.
 
 ## Scripts
 

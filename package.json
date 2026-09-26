@@ -7,21 +7,25 @@
   "scripts": {
     "dev": "concurrently -k \"npm:dev:app\" \"npm:dev:party\"",
     "dev:app": "vite --host 0.0.0.0 --port 5173",
-    "dev:party": "partykit dev --port 1999",
+    "dev:party": "npx --yes partykit@0.0.115 dev --port 1999",
     "build": "tsc && vite build",
     "preview": "vite preview --host 0.0.0.0 --port 4173",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "deploy:party": "partykit deploy"
+    "deploy:party": "npx --yes partykit@0.0.115 deploy"
   },
   "dependencies": {
     "partysocket": "^1.1.6"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
-    "partykit": "^0.0.115",
+    "esbuild": "0.21.5",
     "typescript": "^5.6.3",
     "vite": "^5.4.10",
     "vitest": "^2.1.4"
+  },
+  "allowScripts": {
+    "esbuild": true,
+    "esbuild@0.21.5": true
   }
 }

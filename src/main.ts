@@ -456,8 +456,27 @@ function isTrailing(seat: number): boolean {
 }
 
 function isWinner(seat: number): boolean {
-  if (state.street !== "river" || !state.equities) return false;
-  return state.equities[seat] >= leadingEquity() - 0.05 && leadingEquity() > 0;
+  if (state.street !== "river") return false;
+
+  // Solo: use equity. Online: compare revealed made hands (no equity UI).
+  if (state.mode === "solo") {
+    if (!state.equities) return false;
+    return state.equities[seat] >= leadingEquity() - 0.05 && leadingEquity() > 0;
+  }
+
+  const view = state.online;
+  if (!view?.revealed) return false;
+  if (!holesComplete()) return false;
+  const board = filledBoard();
+  const scores = state.hands.map((h) =>
+    scoreHand(
+      state.gameType,
+      h.filter((c): c is Card => c !== null),
+      board,
+    ),
+  );
+  const best = Math.max(...scores);
+  return scores[seat] === best;
 }
 
 function canShowOuts(): boolean {
@@ -621,12 +640,12 @@ function renderTable(): string {
   const lead = leadingEquity();
   const online = state.mode === "online" ? state.online : null;
   const hostCanDeal = !online || online.youAreHost;
-  const outsOk = state.mode === "solo" || Boolean(online?.revealed);
+  const showEquityUi = state.mode === "solo";
 
   const seats = state.hands
     .map((hand, i) => {
-      const eq = state.equities ? state.equities[i] : null;
-      const trailing = outsOk && isTrailing(i);
+      const eq = showEquityUi && state.equities ? state.equities[i] : null;
+      const trailing = showEquityUi && isTrailing(i);
       const winner = isWinner(i);
       const isLead =
         eq !== null && state.street !== "predeal" && eq >= lead - 0.05 && lead > 0;
@@ -679,7 +698,8 @@ function renderTable(): string {
     hostCanDeal &&
     (state.mode === "solo" ||
       Boolean(online && online.seats.every((s) => s.filled)));
-  const sidebarOpen = state.outsSeat !== null && canShowOuts() && outsOk;
+  const sidebarOpen =
+    showEquityUi && state.outsSeat !== null && canShowOuts();
 
   const meta = online
     ? `${gameLabel(state.gameType)} · Room <strong>${online.roomId}</strong> · ${
