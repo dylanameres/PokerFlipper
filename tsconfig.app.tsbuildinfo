@@ -1,0 +1,1 @@
+{"root":["./src/App.tsx","./src/main.tsx","./src/components/CardPicker.tsx","./src/poker/cards.ts","./src/poker/evaluator.ts","./src/poker/simulate.ts","./src/poker/strategy.ts","./src/poker/__tests__/evaluator.test.ts","./src/poker/__tests__/simulate.test.ts"],"version":"5.9.3"}
