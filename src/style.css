@@ -267,10 +267,22 @@ legend {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  width: 100%;
   padding: 14px;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: #121916;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings__row:hover {
+  border-color: #3d4d44;
+}
+
+.settings__copy {
+  display: block;
 }
 
 .settings__row strong {
@@ -289,15 +301,14 @@ legend {
 /* iOS-style switch */
 .ios-switch {
   position: relative;
+  display: inline-block;
   width: 51px;
   height: 31px;
   flex-shrink: 0;
-  border: none;
   border-radius: 999px;
   background: #3a3a3c;
-  cursor: pointer;
-  padding: 0;
   transition: background 0.2s ease;
+  pointer-events: none;
 }
 
 .ios-switch--on {
@@ -314,6 +325,7 @@ legend {
   background: #fff;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
   transition: transform 0.2s ease;
+  pointer-events: none;
 }
 
 .ios-switch--on .ios-switch__knob {
@@ -688,35 +700,44 @@ legend {
   margin-top: 8px;
 }
 
-.card--face {
+.card--face,
+.picker__card {
   background: var(--card-face);
+  /* Default ink so ranks/suits never wash out against the face */
+  color: #1a1a1a;
+  -webkit-text-fill-color: currentColor;
+}
+
+.card--face {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
 }
 
 .card--red,
-.card--heart {
-  color: var(--red);
+.card--heart,
+.picker__card.card--red,
+.picker__card.card--heart {
+  color: #c62828;
+  -webkit-text-fill-color: #c62828;
 }
 
 .card--black,
-.card--spade {
-  color: var(--black);
+.card--spade,
+.picker__card.card--black,
+.picker__card.card--spade {
+  color: #1a1a1a;
+  -webkit-text-fill-color: #1a1a1a;
 }
 
-.card--diamond {
-  color: var(--blue);
-}
-
-.card--club {
-  color: var(--green);
-}
-
+.card--diamond,
 .picker__card.card--diamond {
-  color: var(--blue);
+  color: #1565c0;
+  -webkit-text-fill-color: #1565c0;
 }
 
+.card--club,
 .picker__card.card--club {
-  color: var(--green);
+  color: #2e7d32;
+  -webkit-text-fill-color: #2e7d32;
 }
 
 .card__rank {

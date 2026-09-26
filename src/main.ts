@@ -257,9 +257,8 @@ function suitColorClass(suit: string): string {
 
 function renderGearButton(): string {
   return `<button type="button" class="btn btn--icon" id="btn-settings" aria-label="Settings" title="Settings">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="3"/>
-      <path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M11.983 2a1 1 0 0 1 .95.68l.37 1.12a7.1 7.1 0 0 1 1.35.78l1.1-.55a1 1 0 0 1 1.26.34l1.02 1.76a1 1 0 0 1-.2 1.28l-.9.8c.1.45.15.91.15 1.37s-.05.92-.15 1.37l.9.8a1 1 0 0 1 .2 1.28l-1.02 1.76a1 1 0 0 1-1.26.34l-1.1-.55c-.42.32-.87.58-1.35.78l-.37 1.12a1 1 0 0 1-.95.68H10.02a1 1 0 0 1-.95-.68l-.37-1.12a7.1 7.1 0 0 1-1.35-.78l-1.1.55a1 1 0 0 1-1.26-.34L3.97 14.9a1 1 0 0 1 .2-1.28l.9-.8A6.9 6.9 0 0 1 4.92 11c0-.46.05-.92.15-1.37l-.9-.8a1 1 0 0 1-.2-1.28l1.02-1.76a1 1 0 0 1 1.26-.34l1.1.55c.42-.32.87-.58 1.35-.78l.37-1.12A1 1 0 0 1 10.02 2h1.96ZM12 8.5A2.5 2.5 0 1 0 12 13.5 2.5 2.5 0 0 0 12 8.5Z"/>
     </svg>
   </button>`;
 }
@@ -422,7 +421,6 @@ function renderSetup(): string {
 
         <button type="submit" class="btn btn--primary">Start table</button>
       </form>
-      ${renderSettingsPanel()}
     </main>
   `;
 }
@@ -558,7 +556,6 @@ function renderTable(): string {
       </div>
       ${sidebarOpen ? renderOutsSidebar(state.outsSeat!) : ""}
       ${state.picking ? renderCardPicker() : ""}
-      ${renderSettingsPanel()}
     </main>
   `;
 }
@@ -624,7 +621,8 @@ function hintForStreet(street: Street): string {
 }
 
 function render() {
-  root.innerHTML = state.screen === "setup" ? renderSetup() : renderTable();
+  const page = state.screen === "setup" ? renderSetup() : renderTable();
+  root.innerHTML = page + renderSettingsPanel();
   bindEvents();
 }
 
@@ -647,13 +645,11 @@ function bindSettingsEvents() {
   document.getElementById("settings-panel")?.addEventListener("click", (e) => {
     e.stopPropagation();
   });
-  document
-    .getElementById("setting-four-color")
-    ?.addEventListener("change", (e) => {
-      state.fourColorDeck = (e.target as HTMLInputElement).checked;
-      saveSettings();
-      render();
-    });
+  document.getElementById("setting-four-color")?.addEventListener("click", () => {
+    state.fourColorDeck = !state.fourColorDeck;
+    saveSettings();
+    render();
+  });
 }
 
 function bindEvents() {
