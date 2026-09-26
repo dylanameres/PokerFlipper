@@ -105,7 +105,6 @@ function dealFlop() {
   state.board[1] = flop[1];
   state.board[2] = flop[2];
   state.street = "flop";
-  state.outsSeat = null;
   refreshEquity();
   render();
 }
@@ -115,7 +114,6 @@ function dealTurn() {
   draw(state.deck, 1);
   state.board[3] = draw(state.deck, 1)[0];
   state.street = "turn";
-  state.outsSeat = null;
   refreshEquity();
   render();
 }
@@ -125,7 +123,7 @@ function dealRiver() {
   draw(state.deck, 1);
   state.board[4] = draw(state.deck, 1)[0];
   state.street = "river";
-  state.outsSeat = null;
+  state.outsSeat = null; // outs only apply before the river
   refreshEquity();
   render();
 }
@@ -187,6 +185,15 @@ function isTrailing(seat: number): boolean {
   return eq < lead - 0.05;
 }
 
+function isWinner(seat: number): boolean {
+  if (state.street !== "river" || !state.equities) return false;
+  return state.equities[seat] >= leadingEquity() - 0.05 && leadingEquity() > 0;
+}
+
+function canShowOuts(): boolean {
+  return state.street === "flop" || state.street === "turn";
+}
+
 function renderSetup(): string {
   const max = MAX_PLAYERS[state.gameType];
   const playerOptions = Array.from(
@@ -242,7 +249,7 @@ function renderSetup(): string {
   `;
 }
 
-function renderOutsPanel(seat: number): string {
+function renderOutsSidebar(seat: number): string {
   const result = findOuts(
     state.gameType,
     filledHands(),
@@ -255,20 +262,32 @@ function renderOutsPanel(seat: number): string {
       ? `<p class="outs__empty">No single ${streetName} card takes the lead.</p>`
       : `<div class="outs__grid">${result.outs.map((c) => renderCard(c, true)).join("")}</div>`;
 
+  const switcher =
+    state.playerCount > 2
+      ? `<div class="outs__tabs" role="tablist" aria-label="Player">
+          ${Array.from({ length: state.playerCount }, (_, i) => {
+            const active = i === seat ? " outs__tab--active" : "";
+            const eq = state.equities ? `${state.equities[i].toFixed(0)}%` : "";
+            return `<button type="button" class="outs__tab${active}" data-outs-tab="${i}" role="tab" aria-selected="${i === seat}">
+              P${i + 1}${eq ? ` <span>${eq}</span>` : ""}
+            </button>`;
+          }).join("")}
+        </div>`
+      : "";
+
   return `
-    <div class="outs-backdrop" id="outs-backdrop">
-      <div class="outs-panel" role="dialog" aria-labelledby="outs-title">
-        <header class="outs__head">
-          <h2 id="outs-title">P${seat + 1} outs to the lead</h2>
-          <button type="button" class="btn btn--ghost" id="btn-close-outs">Close</button>
-        </header>
-        <p class="outs__summary">
-          <strong>${result.outs.length}</strong> of ${result.candidates} unseen cards
-          put P${seat + 1} strictly ahead on the ${streetName}.
-        </p>
-        ${cards}
-      </div>
-    </div>
+    <aside class="outs-sidebar" aria-labelledby="outs-title">
+      <header class="outs__head">
+        <h2 id="outs-title">Outs</h2>
+        <button type="button" class="outs__close" id="btn-close-outs" aria-label="Close outs">×</button>
+      </header>
+      ${switcher}
+      <p class="outs__player">P${seat + 1} · to lead on the ${streetName}</p>
+      <p class="outs__summary">
+        <strong>${result.outs.length}</strong> of ${result.candidates} unseen cards
+      </p>
+      ${cards}
+    </aside>
   `;
 }
 
@@ -280,12 +299,15 @@ function renderTable(): string {
     .map((hand, i) => {
       const eq = state.equities ? state.equities[i] : null;
       const trailing = isTrailing(i);
+      const winner = isWinner(i);
       const isLead =
         eq !== null && state.street !== "predeal" && eq >= lead - 0.05 && lead > 0;
       const eqClass = isLead ? "seat__equity seat__equity--lead" : "seat__equity";
+      const seatClass = winner ? "seat seat--winner" : "seat";
 
       return `
-        <div class="seat" style="${seatStyle(i, state.playerCount)}" data-seat="${i}">
+        <div class="${seatClass}" style="${seatStyle(i, state.playerCount)}" data-seat="${i}">
+          ${winner ? `<div class="seat__winner">Winner</div>` : ""}
           <div class="seat__cards">
             ${hand.map((c) => renderCard(c)).join("")}
           </div>
@@ -308,49 +330,52 @@ function renderTable(): string {
   const canFlop = state.street === "holes";
   const canTurn = state.street === "flop";
   const canRiver = state.street === "turn";
+  const sidebarOpen = state.outsSeat !== null && canShowOuts();
 
   return `
-    <main class="page page--table">
-      <header class="table-bar">
-        <div>
-          <h1>PokerFlipper</h1>
-          <p class="meta">${gameLabel(state.gameType)} · ${state.playerCount} players · ${holes} hole cards</p>
-        </div>
-        <button type="button" class="btn btn--ghost" id="btn-setup">Setup</button>
-      </header>
-
-      <div class="felt">
-        <div class="board">
-          <div class="board__label">Board</div>
-          <div class="board__cards">
-            ${state.board.map((c) => renderCard(c)).join("")}
+    <main class="page page--table${sidebarOpen ? " page--table-sidebar" : ""}">
+      <div class="table-shell">
+        <header class="table-bar">
+          <div>
+            <h1>PokerFlipper</h1>
+            <p class="meta">${gameLabel(state.gameType)} · ${state.playerCount} players · ${holes} hole cards</p>
           </div>
-        </div>
-        ${seats}
-      </div>
+          <button type="button" class="btn btn--ghost" id="btn-setup">Setup</button>
+        </header>
 
-      <div class="actions">
-        <button type="button" class="btn btn--primary" id="btn-deal-holes">
-          Deal hands
-        </button>
-        <button type="button" class="btn" id="btn-deal-flop" ${
-          canFlop ? "" : "disabled"
-        }>
-          Deal flop
-        </button>
-        <button type="button" class="btn" id="btn-deal-turn" ${
-          canTurn ? "" : "disabled"
-        }>
-          Deal turn
-        </button>
-        <button type="button" class="btn" id="btn-deal-river" ${
-          canRiver ? "" : "disabled"
-        }>
-          Deal river
-        </button>
+        <div class="felt">
+          <div class="board">
+            <div class="board__label">Board</div>
+            <div class="board__cards">
+              ${state.board.map((c) => renderCard(c)).join("")}
+            </div>
+          </div>
+          ${seats}
+        </div>
+
+        <div class="actions">
+          <button type="button" class="btn btn--primary" id="btn-deal-holes">
+            Deal hands
+          </button>
+          <button type="button" class="btn" id="btn-deal-flop" ${
+            canFlop ? "" : "disabled"
+          }>
+            Deal flop
+          </button>
+          <button type="button" class="btn" id="btn-deal-turn" ${
+            canTurn ? "" : "disabled"
+          }>
+            Deal turn
+          </button>
+          <button type="button" class="btn" id="btn-deal-river" ${
+            canRiver ? "" : "disabled"
+          }>
+            Deal river
+          </button>
+        </div>
+        <p class="hint">${hintForStreet(state.street)}</p>
       </div>
-      <p class="hint">${hintForStreet(state.street)}</p>
-      ${state.outsSeat !== null ? renderOutsPanel(state.outsSeat) : ""}
+      ${sidebarOpen ? renderOutsSidebar(state.outsSeat!) : ""}
     </main>
   `;
 }
@@ -418,15 +443,16 @@ function bindEvents() {
     });
   });
 
+  document.querySelectorAll<HTMLButtonElement>("[data-outs-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.outsSeat = Number(btn.dataset.outsTab);
+      render();
+    });
+  });
+
   document.getElementById("btn-close-outs")?.addEventListener("click", () => {
     state.outsSeat = null;
     render();
-  });
-  document.getElementById("outs-backdrop")?.addEventListener("click", (e) => {
-    if (e.target === e.currentTarget) {
-      state.outsSeat = null;
-      render();
-    }
   });
 }
 
