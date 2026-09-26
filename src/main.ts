@@ -32,9 +32,32 @@ interface AppState {
   outsSeat: number | null;
   /** Hole-card picker target, or null when closed. */
   picking: { player: number; slot: number } | null;
+  settingsOpen: boolean;
+  fourColorDeck: boolean;
+}
+
+const SETTINGS_KEY = "pokerflipper-settings";
+
+function loadSettings(): { fourColorDeck: boolean } {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return { fourColorDeck: false };
+    const parsed = JSON.parse(raw) as { fourColorDeck?: boolean };
+    return { fourColorDeck: Boolean(parsed.fourColorDeck) };
+  } catch {
+    return { fourColorDeck: false };
+  }
+}
+
+function saveSettings() {
+  localStorage.setItem(
+    SETTINGS_KEY,
+    JSON.stringify({ fourColorDeck: state.fourColorDeck }),
+  );
 }
 
 const root = document.getElementById("app")!;
+const saved = loadSettings();
 
 const state: AppState = {
   screen: "setup",
@@ -47,6 +70,8 @@ const state: AppState = {
   equities: null,
   outsSeat: null,
   picking: null,
+  settingsOpen: false,
+  fourColorDeck: saved.fourColorDeck,
 };
 
 function emptyBoard(): (Card | null)[] {
@@ -219,9 +244,47 @@ const SUIT_GLYPH: Record<string, string> = {
   c: "\u2663",
 };
 
-function isRed(card: Card): boolean {
-  const suit = card & 3;
-  return suit === 1 || suit === 2;
+/** Suit color class: classic red/black, or 4-color (s black, h red, d blue, c green). */
+function suitColorClass(suit: string): string {
+  if (state.fourColorDeck) {
+    if (suit === "s") return "card--spade";
+    if (suit === "h") return "card--heart";
+    if (suit === "d") return "card--diamond";
+    return "card--club";
+  }
+  return suit === "h" || suit === "d" ? "card--red" : "card--black";
+}
+
+function renderGearButton(): string {
+  return `<button type="button" class="btn btn--icon" id="btn-settings" aria-label="Settings" title="Settings">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/>
+    </svg>
+  </button>`;
+}
+
+function renderSettingsPanel(): string {
+  if (!state.settingsOpen) return "";
+  return `
+    <div class="settings-backdrop" id="settings-backdrop">
+      <div class="settings-panel" id="settings-panel" role="dialog" aria-labelledby="settings-title">
+        <header class="settings__head">
+          <h2 id="settings-title">Settings</h2>
+          <button type="button" class="outs__close" id="btn-close-settings" aria-label="Close">×</button>
+        </header>
+        <label class="settings__row">
+          <span>
+            <strong>4 color deck</strong>
+            <small>Spades black · Hearts red · Diamonds blue · Clubs green</small>
+          </span>
+          <input type="checkbox" id="setting-four-color" ${
+            state.fourColorDeck ? "checked" : ""
+          } />
+        </label>
+      </div>
+    </div>
+  `;
 }
 
 function renderCard(
@@ -241,7 +304,7 @@ function renderCard(
   const str = cardToString(card);
   const rank = str[0];
   const suit = str[1];
-  const color = isRed(card) ? "card--red" : "card--black";
+  const color = suitColorClass(suit);
   return `
     <div class="card card--face ${color}${compact ? " card--sm" : ""}${pickClass}" title="${str}"${pickAttrs} aria-label="${str}">
       <span class="card__rank">${rank}</span>
@@ -312,9 +375,12 @@ function renderSetup(): string {
 
   return `
     <main class="page page--setup">
-      <header class="brand">
-        <h1>PokerFlipper</h1>
-        <p>Set up a table, deal hands, run the board.</p>
+      <header class="brand brand--with-actions">
+        <div>
+          <h1>PokerFlipper</h1>
+          <p>Set up a table, deal hands, run the board.</p>
+        </div>
+        ${renderGearButton()}
       </header>
 
       <form id="setup-form" class="panel">
@@ -349,6 +415,7 @@ function renderSetup(): string {
 
         <button type="submit" class="btn btn--primary">Start table</button>
       </form>
+      ${renderSettingsPanel()}
     </main>
   `;
 }
@@ -444,7 +511,10 @@ function renderTable(): string {
             <h1>PokerFlipper</h1>
             <p class="meta">${gameLabel(state.gameType)} · ${state.playerCount} players · ${holes} hole cards</p>
           </div>
-          <button type="button" class="btn btn--ghost" id="btn-setup">Setup</button>
+          <div class="table-bar__actions">
+            ${renderGearButton()}
+            <button type="button" class="btn btn--ghost" id="btn-setup">Setup</button>
+          </div>
         </header>
 
         <div class="felt">
@@ -481,6 +551,7 @@ function renderTable(): string {
       </div>
       ${sidebarOpen ? renderOutsSidebar(state.outsSeat!) : ""}
       ${state.picking ? renderCardPicker() : ""}
+      ${renderSettingsPanel()}
     </main>
   `;
 }
@@ -500,7 +571,7 @@ function renderCardPicker(): string {
     const buttons = RANKS.map((rank) => {
       const card = makeCard(rank, suit);
       const taken = blocked.has(card);
-      const color = suit === "h" || suit === "d" ? "card--red" : "card--black";
+      const color = suitColorClass(suit);
       return `<button type="button" class="picker__card ${color}" data-pick-card="${card}" ${
         taken ? "disabled" : ""
       } title="${rank}${suit}">
@@ -550,7 +621,37 @@ function render() {
   bindEvents();
 }
 
+function bindSettingsEvents() {
+  document.getElementById("btn-settings")?.addEventListener("click", () => {
+    state.settingsOpen = true;
+    render();
+  });
+  document.getElementById("btn-close-settings")?.addEventListener("click", () => {
+    state.settingsOpen = false;
+    render();
+  });
+  const backdrop = document.getElementById("settings-backdrop");
+  backdrop?.addEventListener("click", (e) => {
+    if (e.target === backdrop) {
+      state.settingsOpen = false;
+      render();
+    }
+  });
+  document.getElementById("settings-panel")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+  });
+  document
+    .getElementById("setting-four-color")
+    ?.addEventListener("change", (e) => {
+      state.fourColorDeck = (e.target as HTMLInputElement).checked;
+      saveSettings();
+      render();
+    });
+}
+
 function bindEvents() {
+  bindSettingsEvents();
+
   if (state.screen === "setup") {
     const form = document.getElementById("setup-form") as HTMLFormElement;
     form.addEventListener("change", (e) => {
