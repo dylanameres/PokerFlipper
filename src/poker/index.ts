@@ -1,5 +1,5 @@
 /**
- * PokerFlipper engine — a tiny Texas Hold'em equity simulator.
+ * PokerFlipper engine — Texas Hold'em / Omaha table + equity tools.
  *
  * Cards are strings: rank (2-9, T, J, Q, K, A) + suit (s, h, d, c).
  * Example: "As" = Ace of spades, "Td" = Ten of diamonds.
@@ -16,3 +16,11 @@ export {
   type SimulateHandOptions,
   type SimulateHandResult,
 } from "./simulate";
+export { shuffle, draw } from "./deck";
+export {
+  type GameType,
+  HOLE_COUNT,
+  MAX_PLAYERS,
+  MIN_PLAYERS,
+  gameLabel,
+} from "./game";

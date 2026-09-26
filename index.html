@@ -7,74 +7,7 @@
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-    <main class="app">
-      <h1>PokerFlipper</h1>
-      <p class="tagline">Type cards, run the sim, get equity.</p>
-
-      <form id="sim-form">
-        <label>
-          Hero
-          <input
-            id="hero"
-            name="hero"
-            value="As Ah"
-            placeholder="As Ah"
-            autocomplete="off"
-            spellcheck="false"
-          />
-        </label>
-        <label>
-          Villain <span class="opt">(optional)</span>
-          <input
-            id="villain"
-            name="villain"
-            value="7d 2c"
-            placeholder="random if empty"
-            autocomplete="off"
-            spellcheck="false"
-          />
-        </label>
-        <label>
-          Board <span class="opt">(optional)</span>
-          <input
-            id="board"
-            name="board"
-            value=""
-            placeholder="Ks Qd 2h"
-            autocomplete="off"
-            spellcheck="false"
-          />
-        </label>
-        <label>
-          Iterations
-          <input
-            id="iterations"
-            name="iterations"
-            type="number"
-            min="1000"
-            step="1000"
-            value="20000"
-          />
-        </label>
-        <button type="submit" id="run">Simulate</button>
-      </form>
-
-      <p id="error" class="error" hidden></p>
-      <pre id="out" class="out" hidden></pre>
-
-      <details class="howto">
-        <summary>How to use the engine in code</summary>
-        <pre class="code">import { simulateHand } from "./poker";
-
-const result = simulateHand({
-  hands: [["As", "Ah"], ["7d", "2c"]],
-  board: [],          // optional
-  iterations: 20000,  // optional, default 20000
-});
-
-console.log(result.equities); // e.g. [87.5, 12.5]</pre>
-      </details>
-    </main>
+    <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

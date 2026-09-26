@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { parseCard } from "./cards";
+import { draw, shuffle } from "./deck";
 import {
   categoryOf,
   evaluate5,
   evaluateBest,
   HandCategory,
 } from "./evaluator";
+import { HOLE_COUNT } from "./game";
 import { simulateHand } from "./simulate";
 
 function hand(...cards: string[]) {
@@ -85,5 +87,34 @@ describe("simulateHand", () => {
       iterations: 5000,
     });
     expect(result.equities[0] + result.equities[1]).toBeGreaterThan(99.5);
+  });
+});
+
+describe("deck + game config", () => {
+  it("shuffles a full 52-card deck with unique cards", () => {
+    const deck = shuffle();
+    expect(deck).toHaveLength(52);
+    expect(new Set(deck).size).toBe(52);
+  });
+
+  it("deals Hold'em holes then a flop without overlap", () => {
+    const deck = shuffle();
+    const players = 2;
+    const holes = HOLE_COUNT.holdem;
+    const dealt: number[] = [];
+    for (let h = 0; h < holes; h++) {
+      for (let p = 0; p < players; p++) {
+        dealt.push(draw(deck, 1)[0]);
+      }
+    }
+    draw(deck, 1); // burn
+    const flop = draw(deck, 3);
+    expect(dealt).toHaveLength(4);
+    expect(flop).toHaveLength(3);
+    expect(new Set([...dealt, ...flop]).size).toBe(7);
+  });
+
+  it("uses 4 hole cards for Omaha", () => {
+    expect(HOLE_COUNT.omaha).toBe(4);
   });
 });
