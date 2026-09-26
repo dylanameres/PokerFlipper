@@ -268,20 +268,27 @@ function renderSettingsPanel(): string {
   if (!state.settingsOpen) return "";
   return `
     <div class="settings-backdrop" id="settings-backdrop">
-      <div class="settings-panel" id="settings-panel" role="dialog" aria-labelledby="settings-title">
+      <div class="settings-panel" id="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
         <header class="settings__head">
           <h2 id="settings-title">Settings</h2>
           <button type="button" class="outs__close" id="btn-close-settings" aria-label="Close">×</button>
         </header>
-        <label class="settings__row">
+        <div class="settings__row">
           <span>
             <strong>4 color deck</strong>
             <small>Spades black · Hearts red · Diamonds blue · Clubs green</small>
           </span>
-          <input type="checkbox" id="setting-four-color" ${
-            state.fourColorDeck ? "checked" : ""
-          } />
-        </label>
+          <button
+            type="button"
+            class="ios-switch${state.fourColorDeck ? " ios-switch--on" : ""}"
+            id="setting-four-color"
+            role="switch"
+            aria-checked="${state.fourColorDeck}"
+            aria-label="4 color deck"
+          >
+            <span class="ios-switch__knob"></span>
+          </button>
+        </div>
       </div>
     </div>
   `;
