@@ -4,7 +4,17 @@
  * Cards are strings: rank (2-9, T, J, Q, K, A) + suit (s, h, d, c).
  * Example: "As" = Ace of spades, "Td" = Ten of diamonds.
  */
-export { parseCard, cardToString, type Card } from "./cards";
+export {
+  parseCard,
+  cardToString,
+  fullDeck,
+  makeCard,
+  RANKS,
+  SUITS,
+  type Card,
+  type Rank,
+  type Suit,
+} from "./cards";
 export {
   evaluateBest,
   evaluate5,

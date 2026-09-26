@@ -2,12 +2,16 @@ import {
   cardToString,
   draw,
   findOuts,
+  fullDeck,
   gameLabel,
   HOLE_COUNT,
   liveEquity,
+  makeCard,
   MAX_PLAYERS,
   MIN_PLAYERS,
+  RANKS,
   shuffle,
+  SUITS,
   type Card,
   type GameType,
 } from "./poker";
@@ -26,6 +30,8 @@ interface AppState {
   equities: number[] | null;
   /** Seat index whose outs panel is open, or null. */
   outsSeat: number | null;
+  /** Hole-card picker target, or null when closed. */
+  picking: { player: number; slot: number } | null;
 }
 
 const root = document.getElementById("app")!;
@@ -40,6 +46,7 @@ const state: AppState = {
   street: "predeal",
   equities: null,
   outsSeat: null,
+  picking: null,
 };
 
 function emptyBoard(): (Card | null)[] {
@@ -60,18 +67,45 @@ function filledBoard(): Card[] {
   return state.board.filter((c): c is Card => c !== null);
 }
 
+function usedCards(except?: { player: number; slot: number }): Set<Card> {
+  const used = new Set<Card>();
+  for (let p = 0; p < state.hands.length; p++) {
+    for (let s = 0; s < state.hands[p].length; s++) {
+      if (except && except.player === p && except.slot === s) continue;
+      const c = state.hands[p][s];
+      if (c !== null) used.add(c);
+    }
+  }
+  for (const c of state.board) {
+    if (c !== null) used.add(c);
+  }
+  return used;
+}
+
+/** Rebuild the draw pile from cards not currently on the table. */
+function rebuildDeck() {
+  const used = usedCards();
+  state.deck = shuffle(fullDeck().filter((c) => !used.has(c)));
+}
+
 function resetTable() {
   const holes = HOLE_COUNT[state.gameType];
-  state.deck = shuffle();
   state.hands = emptyHands(state.playerCount, holes);
   state.board = emptyBoard();
   state.street = "predeal";
   state.equities = null;
   state.outsSeat = null;
+  state.picking = null;
+  rebuildDeck();
 }
 
 function refreshEquity() {
   if (state.street === "predeal") {
+    state.equities = null;
+    return;
+  }
+  // Equity needs every hole card filled.
+  if (state.hands.some((h) => h.some((c) => c === null))) {
     state.equities = null;
     return;
   }
@@ -85,11 +119,23 @@ function startTable() {
 }
 
 function dealHoles() {
-  resetTable();
+  if (state.street !== "predeal") {
+    // New round — clear everything, including prior picks.
+    resetTable();
+  } else {
+    // Keep any pre-selected hole cards; clear board just in case.
+    state.board = emptyBoard();
+    state.outsSeat = null;
+    state.picking = null;
+  }
+
+  rebuildDeck();
   const holes = HOLE_COUNT[state.gameType];
   for (let h = 0; h < holes; h++) {
     for (let p = 0; p < state.playerCount; p++) {
-      state.hands[p][h] = draw(state.deck, 1)[0];
+      if (state.hands[p][h] === null) {
+        state.hands[p][h] = draw(state.deck, 1)[0];
+      }
     }
   }
   state.street = "holes";
@@ -97,8 +143,35 @@ function dealHoles() {
   render();
 }
 
+function openPicker(player: number, slot: number) {
+  state.picking = { player, slot };
+  render();
+}
+
+function closePicker() {
+  state.picking = null;
+  render();
+}
+
+function assignHoleCard(card: Card | null) {
+  if (!state.picking) return;
+  const { player, slot } = state.picking;
+  state.hands[player][slot] = card;
+  state.picking = null;
+  rebuildDeck();
+  if (state.street !== "predeal") {
+    refreshEquity();
+    syncOutsSeat();
+  }
+  render();
+}
+
+function holesComplete(): boolean {
+  return state.hands.every((h) => h.every((c) => c !== null));
+}
+
 function dealFlop() {
-  if (state.street !== "holes") return;
+  if (state.street !== "holes" || !holesComplete()) return;
   draw(state.deck, 1);
   const flop = draw(state.deck, 3);
   state.board[0] = flop[0];
@@ -133,6 +206,7 @@ function dealRiver() {
 function backToSetup() {
   state.screen = "setup";
   state.outsSeat = null;
+  state.picking = null;
   render();
 }
 
@@ -150,16 +224,26 @@ function isRed(card: Card): boolean {
   return suit === 1 || suit === 2;
 }
 
-function renderCard(card: Card | null, compact = false): string {
+function renderCard(
+  card: Card | null,
+  opts: { compact?: boolean; pickPlayer?: number; pickSlot?: number } = {},
+): string {
+  const { compact = false, pickPlayer, pickSlot } = opts;
+  const pickAttrs =
+    pickPlayer !== undefined && pickSlot !== undefined
+      ? ` data-pick-player="${pickPlayer}" data-pick-slot="${pickSlot}" role="button" tabindex="0"`
+      : "";
+  const pickClass = pickAttrs ? " card--pickable" : "";
+
   if (card === null) {
-    return `<div class="card card--empty${compact ? " card--sm" : ""}" aria-hidden="true"></div>`;
+    return `<div class="card card--empty${compact ? " card--sm" : ""}${pickClass}"${pickAttrs} aria-label="Empty card slot"></div>`;
   }
   const str = cardToString(card);
   const rank = str[0];
   const suit = str[1];
   const color = isRed(card) ? "card--red" : "card--black";
   return `
-    <div class="card card--face ${color}${compact ? " card--sm" : ""}" title="${str}">
+    <div class="card card--face ${color}${compact ? " card--sm" : ""}${pickClass}" title="${str}"${pickAttrs} aria-label="${str}">
       <span class="card__rank">${rank}</span>
       <span class="card__suit">${SUIT_GLYPH[suit]}</span>
     </div>
@@ -280,7 +364,7 @@ function renderOutsSidebar(seat: number): string {
   const cards =
     result.outs.length === 0
       ? `<p class="outs__empty">No single ${streetName} card takes the lead.</p>`
-      : `<div class="outs__grid">${result.outs.map((c) => renderCard(c, true)).join("")}</div>`;
+      : `<div class="outs__grid">${result.outs.map((c) => renderCard(c, { compact: true })).join("")}</div>`;
 
   const switcher =
     state.playerCount > 2
@@ -329,7 +413,7 @@ function renderTable(): string {
         <div class="${seatClass}" style="${seatStyle(i, state.playerCount)}" data-seat="${i}">
           ${winner ? `<div class="seat__winner">Winner</div>` : ""}
           <div class="seat__cards">
-            ${hand.map((c) => renderCard(c)).join("")}
+            ${hand.map((c, slot) => renderCard(c, { pickPlayer: i, pickSlot: slot })).join("")}
           </div>
           <div class="seat__label">P${i + 1}</div>
           ${
@@ -396,16 +480,62 @@ function renderTable(): string {
         <p class="hint">${hintForStreet(state.street)}</p>
       </div>
       ${sidebarOpen ? renderOutsSidebar(state.outsSeat!) : ""}
+      ${state.picking ? renderCardPicker() : ""}
     </main>
+  `;
+}
+
+function renderCardPicker(): string {
+  if (!state.picking) return "";
+  const { player, slot } = state.picking;
+  const blocked = usedCards({ player, slot });
+  const suitNames: Record<string, string> = {
+    s: "Spades",
+    h: "Hearts",
+    d: "Diamonds",
+    c: "Clubs",
+  };
+
+  const rows = SUITS.map((suit) => {
+    const buttons = RANKS.map((rank) => {
+      const card = makeCard(rank, suit);
+      const taken = blocked.has(card);
+      const color = suit === "h" || suit === "d" ? "card--red" : "card--black";
+      return `<button type="button" class="picker__card ${color}" data-pick-card="${card}" ${
+        taken ? "disabled" : ""
+      } title="${rank}${suit}">
+        <span>${rank}</span><span>${SUIT_GLYPH[suit]}</span>
+      </button>`;
+    }).join("");
+    return `<div class="picker__suit">
+      <div class="picker__suit-label">${SUIT_GLYPH[suit]} ${suitNames[suit]}</div>
+      <div class="picker__row">${buttons}</div>
+    </div>`;
+  }).join("");
+
+  return `
+    <div class="picker-backdrop" id="picker-backdrop">
+      <aside class="picker-sidebar" id="picker-sidebar">
+        <header class="picker__head">
+          <div>
+            <h2>Pick a card</h2>
+            <p>P${player + 1} · slot ${slot + 1}</p>
+          </div>
+          <button type="button" class="outs__close" id="btn-close-picker" aria-label="Cancel">×</button>
+        </header>
+        ${rows}
+        <button type="button" class="btn btn--ghost picker__clear" id="btn-clear-pick">Clear slot</button>
+      </aside>
+    </div>
   `;
 }
 
 function hintForStreet(street: Street): string {
   switch (street) {
     case "predeal":
-      return "Click Deal hands to give every player random hole cards.";
+      return "Click any card slot to choose it. Deal hands randomizes only empty slots.";
     case "holes":
-      return "Live equity shown under each seat. Deal the flop to continue.";
+      return "Click a hole card to change it. Deal the flop when ready.";
     case "flop":
       return "Equity updated. Trailing hands can View outs for the turn.";
     case "turn":
@@ -473,6 +603,30 @@ function bindEvents() {
   document.getElementById("btn-close-outs")?.addEventListener("click", () => {
     state.outsSeat = null;
     render();
+  });
+
+  document.querySelectorAll<HTMLElement>("[data-pick-player]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openPicker(Number(el.dataset.pickPlayer), Number(el.dataset.pickSlot));
+    });
+  });
+
+  const backdrop = document.getElementById("picker-backdrop");
+  backdrop?.addEventListener("click", (e) => {
+    if (e.target === backdrop) closePicker();
+  });
+  document.getElementById("btn-close-picker")?.addEventListener("click", closePicker);
+  document.getElementById("btn-clear-pick")?.addEventListener("click", () => {
+    assignHoleCard(null);
+  });
+  document.querySelectorAll<HTMLButtonElement>("[data-pick-card]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      assignHoleCard(Number(btn.dataset.pickCard));
+    });
+  });
+  document.getElementById("picker-sidebar")?.addEventListener("click", (e) => {
+    e.stopPropagation();
   });
 }
 
