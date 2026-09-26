@@ -72,6 +72,56 @@ select {
   margin-bottom: 28px;
 }
 
+.mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 4px;
+  background: #0e1411;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.mode-tab {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 10px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.mode-tab--active {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.setup-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.join-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.join-row input {
+  font: inherit;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  text-align: center;
+  color: var(--ink);
+  background: #0e1411;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
 .panel {
   display: grid;
   gap: 18px;
@@ -595,6 +645,19 @@ legend {
 .card--empty {
   border: 2px dashed var(--empty);
   background: rgba(0, 0, 0, 0.12);
+}
+
+.card--back {
+  background:
+    repeating-linear-gradient(
+      45deg,
+      #1a3a6e,
+      #1a3a6e 6px,
+      #24508f 6px,
+      #24508f 12px
+    );
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
 }
 
 .card--pickable {

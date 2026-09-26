@@ -1,57 +1,43 @@
 # PokerFlipper
 
-A lightweight Texas Hold'em / Omaha table simulator.
+A lightweight Texas Hold'em / Omaha table simulator — solo or online with a room code.
 
-1. **Setup** — choose Hold'em or Omaha and the number of players  
-2. **Table** — see blank card spots for every seat and the board  
-3. **Deal** — deal random hole cards, then flop / turn / river
+1. **Setup** — Solo or Online, Hold'em or Omaha  
+2. **Table** — deal hands / flop / turn / river  
+3. **Online** — create/join a room; deck is shuffled on the PartyKit server so neither browser sees undealt cards; hole cards stay private until the river
 
 ## Quick start
 
 ```bash
 npm install
-npm run dev        # http://localhost:5173
+npm run dev        # Vite :5173 + PartyKit :1999
 ```
 
-## Simulate equity in code
+Open http://localhost:5173 — use **Online → Create room**, then join from another tab with the code.
 
-```ts
-import { simulateHand } from "./poker";
+## Deploy PartyKit
 
-const result = simulateHand({
-  hands: [
-    ["As", "Ah"], // hero
-    ["7d", "2c"], // villain (use [] for a random hand)
-  ],
-  board: [], // optional, e.g. ["Ks", "Qd", "2h"]
-  iterations: 20000,
-});
-
-console.log(result.equities); // e.g. [87.5, 12.5]
+```bash
+npm run deploy:party
 ```
 
-Cards are `rank + suit`: ranks `2-9TJQKA`, suits `shdc`.
+Set `VITE_PARTYKIT_HOST` to your deployed host (e.g. `pokerflipper.<user>.partykit.dev`) when building the frontend for production.
 
 ## Scripts
 
 | Command | What it does |
 | --- | --- |
-| `npm run dev` | Dev server on port 5173 |
-| `npm test` | Unit tests (Vitest) |
-| `npm run build` | Production build |
-| `npm run typecheck` | TypeScript check |
+| `npm run dev` | App + PartyKit room server |
+| `npm run dev:app` | Vite only |
+| `npm run dev:party` | PartyKit only |
+| `npm test` | Unit tests |
+| `npm run build` | Production frontend build |
+| `npm run deploy:party` | Deploy the room server |
 
 ## Layout
 
 ```
-src/
-  main.ts           # setup page + table UI
-  style.css
-  poker/
-    index.ts        # public exports
-    cards.ts        # card parse/encode
-    deck.ts         # shuffle / draw
-    game.ts         # holdem / omaha config
-    evaluator.ts    # 5- and 7-card hand ranking
-    simulate.ts     # simulateHand() equity
+src/            # Vite UI + solo engine
+party/server.ts # PartyKit room (shuffle + deal)
+shared/         # Client/server message types
 ```

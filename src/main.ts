@@ -1,3 +1,10 @@
+import type { RoomView } from "../shared/protocol";
+import {
+  connectOnline,
+  disconnectOnline,
+  randomRoomCode,
+  sendOnline,
+} from "./online";
 import {
   cardToString,
   draw,
@@ -18,9 +25,11 @@ import {
 
 type Screen = "setup" | "table";
 type Street = "predeal" | "holes" | "flop" | "turn" | "river";
+type PlayMode = "solo" | "online";
 
 interface AppState {
   screen: Screen;
+  mode: PlayMode;
   gameType: GameType;
   playerCount: number;
   deck: Card[];
@@ -34,6 +43,11 @@ interface AppState {
   picking: { player: number; slot: number } | null;
   settingsOpen: boolean;
   fourColorDeck: boolean;
+  /** Online multiplayer view from PartyKit (null in solo). */
+  online: RoomView | null;
+  roomCode: string;
+  joinCode: string;
+  onlineError: string | null;
 }
 
 const SETTINGS_KEY = "pokerflipper-settings";
@@ -50,10 +64,14 @@ function loadSettings(): { fourColorDeck: boolean } {
 }
 
 function saveSettings() {
-  localStorage.setItem(
-    SETTINGS_KEY,
-    JSON.stringify({ fourColorDeck: state.fourColorDeck }),
-  );
+  try {
+    localStorage.setItem(
+      SETTINGS_KEY,
+      JSON.stringify({ fourColorDeck: state.fourColorDeck }),
+    );
+  } catch {
+    // ignore quota / private-mode failures
+  }
 }
 
 const root = document.getElementById("app")!;
@@ -61,6 +79,7 @@ const saved = loadSettings();
 
 const state: AppState = {
   screen: "setup",
+  mode: "solo",
   gameType: "holdem",
   playerCount: 2,
   deck: [],
@@ -72,6 +91,10 @@ const state: AppState = {
   picking: null,
   settingsOpen: false,
   fourColorDeck: saved.fourColorDeck,
+  online: null,
+  roomCode: "",
+  joinCode: "",
+  onlineError: null,
 };
 
 function emptyBoard(): (Card | null)[] {
@@ -137,13 +160,104 @@ function refreshEquity() {
   state.equities = liveEquity(state.gameType, filledHands(), filledBoard());
 }
 
-function startTable() {
+function startSoloTable() {
+  disconnectOnline();
+  state.mode = "solo";
+  state.online = null;
+  state.onlineError = null;
   resetTable();
   state.screen = "table";
   render();
 }
 
+function applyOnlineView(view: RoomView) {
+  state.online = view;
+  state.mode = "online";
+  state.gameType = view.gameType;
+  state.playerCount = 2;
+  state.street = view.street;
+  state.roomCode = view.roomId;
+  state.board = view.board.map((c) => c);
+  state.picking = null;
+
+  const holes = HOLE_COUNT[view.gameType];
+  state.hands = emptyHands(2, holes);
+  if (view.yourSeat !== null) {
+    state.hands[view.yourSeat] = view.yourHoles.map((c) => c);
+    const opp = 1 - view.yourSeat;
+    if (view.revealed && view.opponentHoles) {
+      state.hands[opp] = view.opponentHoles.map((c) => c);
+    } else {
+      // Keep nulls; UI renders card-backs from opponentHidden.
+      state.hands[opp] = emptyHands(1, holes)[0];
+    }
+  }
+
+  // Equity: after reveal use both hands; otherwise your hand vs random.
+  if (view.street === "predeal" || view.yourSeat === null) {
+    state.equities = null;
+  } else if (view.revealed && view.opponentHoles) {
+    state.equities = liveEquity(view.gameType, [
+      view.yourHoles.filter((c): c is number => c !== null),
+      view.opponentHoles.filter((c): c is number => c !== null),
+    ], view.board.filter((c): c is number => c !== null));
+    // Map equity into seat order.
+    if (view.yourSeat === 1) {
+      state.equities = [state.equities[1], state.equities[0]];
+    }
+  } else if (view.yourHoles.every((c) => c !== null)) {
+    const mine = view.yourHoles.filter((c): c is number => c !== null);
+    const eq = liveEquity(
+      view.gameType,
+      [mine, []],
+      view.board.filter((c): c is number => c !== null),
+    );
+    state.equities =
+      view.yourSeat === 0 ? [eq[0], eq[1]] : [eq[1], eq[0]];
+  } else {
+    state.equities = null;
+  }
+
+  syncOutsSeat();
+  state.screen = "table";
+  render();
+}
+
+function startOnline(roomCode: string) {
+  state.mode = "online";
+  state.onlineError = null;
+  state.roomCode = roomCode.toUpperCase();
+  state.screen = "table";
+  state.online = null;
+  state.street = "predeal";
+  state.board = emptyBoard();
+  state.hands = emptyHands(2, HOLE_COUNT[state.gameType]);
+  state.equities = null;
+  state.outsSeat = null;
+  state.picking = null;
+  render();
+
+  connectOnline(state.roomCode, state.gameType, {
+    onView: (view) => applyOnlineView(view),
+    onError: (message) => {
+      state.onlineError = message;
+      render();
+    },
+    onClose: () => {
+      if (state.mode === "online") {
+        state.onlineError = state.onlineError ?? "Disconnected from room";
+        render();
+      }
+    },
+  });
+}
+
 function dealHoles() {
+  if (state.mode === "online") {
+    sendOnline({ type: "deal_hands" });
+    return;
+  }
+
   if (state.street !== "predeal") {
     // New round — clear everything, including prior picks.
     resetTable();
@@ -169,6 +283,7 @@ function dealHoles() {
 }
 
 function openPicker(player: number, slot: number) {
+  if (state.mode === "online") return; // server deals; no client picks
   state.picking = { player, slot };
   render();
 }
@@ -196,6 +311,10 @@ function holesComplete(): boolean {
 }
 
 function dealFlop() {
+  if (state.mode === "online") {
+    sendOnline({ type: "deal_flop" });
+    return;
+  }
   if (state.street !== "holes" || !holesComplete()) return;
   draw(state.deck, 1);
   const flop = draw(state.deck, 3);
@@ -209,6 +328,10 @@ function dealFlop() {
 }
 
 function dealTurn() {
+  if (state.mode === "online") {
+    sendOnline({ type: "deal_turn" });
+    return;
+  }
   if (state.street !== "flop") return;
   draw(state.deck, 1);
   state.board[3] = draw(state.deck, 1)[0];
@@ -219,6 +342,10 @@ function dealTurn() {
 }
 
 function dealRiver() {
+  if (state.mode === "online") {
+    sendOnline({ type: "deal_river" });
+    return;
+  }
   if (state.street !== "turn") return;
   draw(state.deck, 1);
   state.board[4] = draw(state.deck, 1)[0];
@@ -229,7 +356,11 @@ function dealRiver() {
 }
 
 function backToSetup() {
+  disconnectOnline();
   state.screen = "setup";
+  state.mode = "solo";
+  state.online = null;
+  state.onlineError = null;
   state.outsSeat = null;
   state.picking = null;
   render();
@@ -272,22 +403,20 @@ function renderSettingsPanel(): string {
           <h2 id="settings-title">Settings</h2>
           <button type="button" class="outs__close" id="btn-close-settings" aria-label="Close">×</button>
         </header>
-        <div class="settings__row">
-          <span>
+        <button type="button" class="settings__row" id="setting-four-color-row">
+          <span class="settings__copy">
             <strong>4 color deck</strong>
             <small>Spades black · Hearts red · Diamonds blue · Clubs green</small>
           </span>
-          <button
-            type="button"
+          <span
             class="ios-switch${state.fourColorDeck ? " ios-switch--on" : ""}"
             id="setting-four-color"
             role="switch"
             aria-checked="${state.fourColorDeck}"
-            aria-label="4 color deck"
           >
             <span class="ios-switch__knob"></span>
-          </button>
-        </div>
+          </span>
+        </button>
       </div>
     </div>
   `;
@@ -295,15 +424,23 @@ function renderSettingsPanel(): string {
 
 function renderCard(
   card: Card | null,
-  opts: { compact?: boolean; pickPlayer?: number; pickSlot?: number } = {},
+  opts: {
+    compact?: boolean;
+    pickPlayer?: number;
+    pickSlot?: number;
+    faceDown?: boolean;
+  } = {},
 ): string {
-  const { compact = false, pickPlayer, pickSlot } = opts;
+  const { compact = false, pickPlayer, pickSlot, faceDown = false } = opts;
   const pickAttrs =
-    pickPlayer !== undefined && pickSlot !== undefined
+    !faceDown && pickPlayer !== undefined && pickSlot !== undefined
       ? ` data-pick-player="${pickPlayer}" data-pick-slot="${pickSlot}" role="button" tabindex="0"`
       : "";
   const pickClass = pickAttrs ? " card--pickable" : "";
 
+  if (faceDown) {
+    return `<div class="card card--back${compact ? " card--sm" : ""}" aria-label="Face-down card"></div>`;
+  }
   if (card === null) {
     return `<div class="card card--empty${compact ? " card--sm" : ""}${pickClass}"${pickAttrs} aria-label="Empty card slot"></div>`;
   }
@@ -379,6 +516,38 @@ function renderSetup(): string {
     )
     .join("");
 
+  const soloFields = `
+        <label class="field">
+          Players
+          <select name="playerCount" id="player-count">
+            ${playerOptions}
+          </select>
+        </label>
+        <button type="submit" class="btn btn--primary" data-setup-action="solo">Start table</button>
+  `;
+
+  const onlineFields = `
+        <p class="setup-note">2 players · deck shuffled on the server · hole cards stay private until the river</p>
+        <button type="button" class="btn btn--primary" id="btn-create-room">Create room</button>
+        <div class="join-row">
+          <input
+            id="join-code"
+            name="joinCode"
+            maxlength="6"
+            placeholder="ROOM"
+            value="${state.joinCode}"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button type="button" class="btn" id="btn-join-room">Join</button>
+        </div>
+        ${
+          state.onlineError
+            ? `<p class="error">${state.onlineError}</p>`
+            : ""
+        }
+  `;
+
   return `
     <main class="page page--setup">
       <header class="brand brand--with-actions">
@@ -390,6 +559,15 @@ function renderSetup(): string {
       </header>
 
       <form id="setup-form" class="panel">
+        <div class="mode-tabs">
+          <button type="button" class="mode-tab${
+            state.mode === "solo" ? " mode-tab--active" : ""
+          }" data-mode="solo">Solo</button>
+          <button type="button" class="mode-tab${
+            state.mode === "online" ? " mode-tab--active" : ""
+          }" data-mode="online">Online</button>
+        </div>
+
         <fieldset>
           <legend>Game</legend>
           <label class="choice">
@@ -412,14 +590,7 @@ function renderSetup(): string {
           </label>
         </fieldset>
 
-        <label class="field">
-          Players
-          <select name="playerCount" id="player-count">
-            ${playerOptions}
-          </select>
-        </label>
-
-        <button type="submit" class="btn btn--primary">Start table</button>
+        ${state.mode === "solo" ? soloFields : onlineFields}
       </form>
     </main>
   `;
@@ -470,24 +641,44 @@ function renderOutsSidebar(seat: number): string {
 function renderTable(): string {
   const holes = HOLE_COUNT[state.gameType];
   const lead = leadingEquity();
+  const online = state.mode === "online" ? state.online : null;
+  const hostCanDeal = !online || online.youAreHost;
+  const outsOk = state.mode === "solo" || Boolean(online?.revealed);
 
   const seats = state.hands
     .map((hand, i) => {
       const eq = state.equities ? state.equities[i] : null;
-      const trailing = isTrailing(i);
+      const trailing = outsOk && isTrailing(i);
       const winner = isWinner(i);
       const isLead =
         eq !== null && state.street !== "predeal" && eq >= lead - 0.05 && lead > 0;
       const eqClass = isLead ? "seat__equity seat__equity--lead" : "seat__equity";
       const seatClass = winner ? "seat seat--winner" : "seat";
+      const isYou = online?.yourSeat === i;
+      const oppSeat = online && online.yourSeat !== null ? 1 - online.yourSeat : -1;
+      const showBacks =
+        online &&
+        i === oppSeat &&
+        !online.revealed &&
+        online.opponentHidden.some(Boolean);
 
       return `
         <div class="${seatClass}" style="${seatStyle(i, state.playerCount)}" data-seat="${i}">
           ${winner ? `<div class="seat__winner">Winner</div>` : ""}
           <div class="seat__cards">
-            ${hand.map((c, slot) => renderCard(c, { pickPlayer: i, pickSlot: slot })).join("")}
+            ${hand
+              .map((c, slot) =>
+                renderCard(c, {
+                  pickPlayer: state.mode === "solo" ? i : undefined,
+                  pickSlot: state.mode === "solo" ? slot : undefined,
+                  faceDown: Boolean(showBacks && online?.opponentHidden[slot]),
+                }),
+              )
+              .join("")}
           </div>
-          <div class="seat__label">P${i + 1}</div>
+          <div class="seat__label">${isYou ? "You" : `P${i + 1}`}${
+            online?.seats[i]?.connected === false ? " (away)" : ""
+          }</div>
           ${
             eq !== null
               ? `<div class="${eqClass}">${eq.toFixed(1)}%</div>`
@@ -503,10 +694,20 @@ function renderTable(): string {
     })
     .join("");
 
-  const canFlop = state.street === "holes";
-  const canTurn = state.street === "flop";
-  const canRiver = state.street === "turn";
-  const sidebarOpen = state.outsSeat !== null && canShowOuts();
+  const canFlop = state.street === "holes" && hostCanDeal;
+  const canTurn = state.street === "flop" && hostCanDeal;
+  const canRiver = state.street === "turn" && hostCanDeal;
+  const canDealHands =
+    hostCanDeal &&
+    (state.mode === "solo" ||
+      Boolean(online && online.seats.every((s) => s.filled)));
+  const sidebarOpen = state.outsSeat !== null && canShowOuts() && outsOk;
+
+  const meta = online
+    ? `${gameLabel(state.gameType)} · Room <strong>${online.roomId}</strong> · ${
+        online.youAreHost ? "Host" : "Guest"
+      }`
+    : `${gameLabel(state.gameType)} · ${state.playerCount} players · ${holes} hole cards`;
 
   return `
     <main class="page page--table${sidebarOpen ? " page--table-sidebar" : ""}">
@@ -514,7 +715,17 @@ function renderTable(): string {
         <header class="table-bar">
           <div>
             <h1>PokerFlipper</h1>
-            <p class="meta">${gameLabel(state.gameType)} · ${state.playerCount} players · ${holes} hole cards</p>
+            <p class="meta">${meta}</p>
+            ${
+              online
+                ? `<p class="meta">${online.status}</p>`
+                : ""
+            }
+            ${
+              state.onlineError
+                ? `<p class="error">${state.onlineError}</p>`
+                : ""
+            }
           </div>
           <div class="table-bar__actions">
             ${renderGearButton()}
@@ -533,7 +744,9 @@ function renderTable(): string {
         </div>
 
         <div class="actions">
-          <button type="button" class="btn btn--primary" id="btn-deal-holes">
+          <button type="button" class="btn btn--primary" id="btn-deal-holes" ${
+            canDealHands ? "" : "disabled"
+          }>
             Deal hands
           </button>
           <button type="button" class="btn" id="btn-deal-flop" ${
@@ -552,7 +765,9 @@ function renderTable(): string {
             Deal river
           </button>
         </div>
-        <p class="hint">${hintForStreet(state.street)}</p>
+        <p class="hint">${
+          online ? online.status : hintForStreet(state.street)
+        }</p>
       </div>
       ${sidebarOpen ? renderOutsSidebar(state.outsSeat!) : ""}
       ${state.picking ? renderCardPicker() : ""}
@@ -626,6 +841,12 @@ function render() {
   bindEvents();
 }
 
+function toggleFourColorDeck() {
+  state.fourColorDeck = !state.fourColorDeck;
+  saveSettings();
+  render();
+}
+
 function bindSettingsEvents() {
   document.getElementById("btn-settings")?.addEventListener("click", () => {
     state.settingsOpen = true;
@@ -635,21 +856,19 @@ function bindSettingsEvents() {
     state.settingsOpen = false;
     render();
   });
-  const backdrop = document.getElementById("settings-backdrop");
-  backdrop?.addEventListener("click", (e) => {
-    if (e.target === backdrop) {
+  document.getElementById("settings-backdrop")?.addEventListener("click", (e) => {
+    if (e.target === e.currentTarget) {
       state.settingsOpen = false;
       render();
     }
   });
-  document.getElementById("settings-panel")?.addEventListener("click", (e) => {
-    e.stopPropagation();
-  });
-  document.getElementById("setting-four-color")?.addEventListener("click", () => {
-    state.fourColorDeck = !state.fourColorDeck;
-    saveSettings();
-    render();
-  });
+  document
+    .getElementById("setting-four-color-row")
+    ?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleFourColorDeck();
+    });
 }
 
 function bindEvents() {
@@ -657,6 +876,13 @@ function bindEvents() {
 
   if (state.screen === "setup") {
     const form = document.getElementById("setup-form") as HTMLFormElement;
+    document.querySelectorAll<HTMLButtonElement>("[data-mode]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.mode = btn.dataset.mode as PlayMode;
+        state.onlineError = null;
+        render();
+      });
+    });
     form.addEventListener("change", (e) => {
       const target = e.target as HTMLInputElement | HTMLSelectElement;
       if (target.name === "gameType") {
@@ -673,11 +899,26 @@ function bindEvents() {
     });
     form.addEventListener("submit", (e) => {
       e.preventDefault();
+      if (state.mode !== "solo") return;
       const select = document.getElementById(
         "player-count",
       ) as HTMLSelectElement;
       state.playerCount = Number(select.value);
-      startTable();
+      startSoloTable();
+    });
+    document.getElementById("btn-create-room")?.addEventListener("click", () => {
+      startOnline(randomRoomCode());
+    });
+    document.getElementById("btn-join-room")?.addEventListener("click", () => {
+      const input = document.getElementById("join-code") as HTMLInputElement;
+      const code = (input?.value || "").trim().toUpperCase();
+      if (code.length < 3) {
+        state.onlineError = "Enter a room code";
+        render();
+        return;
+      }
+      state.joinCode = code;
+      startOnline(code);
     });
     return;
   }
