@@ -210,7 +210,8 @@ function pickTrailingSeat(prefer: number | null = null): number | null {
 
 function syncOutsSeat() {
   if (state.outsSeat === null) return;
-  state.outsSeat = pickTrailingSeat(state.outsSeat);
+  // Follow whoever is currently losing (lowest equity among trailers).
+  state.outsSeat = pickTrailingSeat(null);
 }
 
 function renderSetup(): string {
