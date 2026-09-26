@@ -242,6 +242,101 @@ legend {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
+.seat__equity {
+  margin-top: 4px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #d7e3db;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.seat__equity--lead {
+  color: var(--accent);
+}
+
+.btn--outs {
+  margin-top: 6px;
+  padding: 5px 10px;
+  font-size: 0.7rem;
+  border-color: rgba(255, 209, 102, 0.55);
+  color: #ffe29a;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.btn--outs:hover {
+  border-color: #ffd166;
+  color: #fff;
+}
+
+.outs-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+  padding: 16px;
+}
+
+.outs-panel {
+  width: min(560px, 100%);
+  max-height: min(80vh, 640px);
+  overflow: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+
+.outs__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.outs__head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.outs__summary {
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.outs__summary strong {
+  color: var(--accent);
+}
+
+.outs__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.outs__empty {
+  margin: 0;
+  color: var(--muted);
+}
+
+.card--sm {
+  width: 38px;
+  height: 54px;
+}
+
+.card--sm .card__rank {
+  font-size: 0.95rem;
+}
+
+.card--sm .card__suit {
+  font-size: 0.85rem;
+}
+
 .card {
   width: 44px;
   height: 62px;

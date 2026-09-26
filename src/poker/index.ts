@@ -11,11 +11,13 @@ export {
   HandCategory,
   HAND_CATEGORY_NAMES,
 } from "./evaluator";
+export { evaluateOmaha } from "./omaha";
 export {
   simulateHand,
   type SimulateHandOptions,
   type SimulateHandResult,
 } from "./simulate";
+export { liveEquity, findOuts, scoreHand } from "./equity";
 export { shuffle, draw } from "./deck";
 export {
   type GameType,

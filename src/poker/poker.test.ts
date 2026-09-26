@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseCard } from "./cards";
 import { draw, shuffle } from "./deck";
+import { findOuts, liveEquity } from "./equity";
 import {
   categoryOf,
   evaluate5,
@@ -8,6 +9,7 @@ import {
   HandCategory,
 } from "./evaluator";
 import { HOLE_COUNT } from "./game";
+import { evaluateOmaha } from "./omaha";
 import { simulateHand } from "./simulate";
 
 function hand(...cards: string[]) {
@@ -116,5 +118,59 @@ describe("deck + game config", () => {
 
   it("uses 4 hole cards for Omaha", () => {
     expect(HOLE_COUNT.omaha).toBe(4);
+  });
+});
+
+describe("liveEquity + outs", () => {
+  it("gives nearly 100% on the river when holding the nuts", () => {
+    const eq = liveEquity(
+      "holdem",
+      [
+        ["As", "Ks"].map(parseCard),
+        ["Ah", "Kh"].map(parseCard),
+      ],
+      ["Qs", "Js", "Ts", "2d", "3c"].map(parseCard),
+    );
+    expect(eq[0]).toBe(100);
+    expect(eq[1]).toBe(0);
+  });
+
+  it("updates flop equity for a flopped set vs overcards", () => {
+    const eq = liveEquity(
+      "holdem",
+      [
+        ["7s", "7h"].map(parseCard),
+        ["As", "Kd"].map(parseCard),
+      ],
+      ["7d", "2c", "9h"].map(parseCard),
+    );
+    expect(eq[0]).toBeGreaterThan(85);
+    expect(eq[1]).toBeLessThan(15);
+  });
+
+  it("lists turn outs that put the trailer ahead", () => {
+    // Pair of aces vs flush draw — hearts are outs for the draw.
+    const hands = [
+      ["As", "Kd"].map(parseCard),
+      ["5h", "4h"].map(parseCard),
+    ];
+    const board = ["Ah", "7h", "2c"].map(parseCard);
+    const { outs, candidates } = findOuts("holdem", hands, board, 1);
+    expect(candidates).toBeGreaterThan(40);
+    const heartOuts = outs.filter((c) => (c & 3) === 1);
+    expect(heartOuts.length).toBeGreaterThanOrEqual(8);
+  });
+
+  it("evaluates Omaha using exactly two hole cards", () => {
+    // Four aces in hand can't make quads — only two hole cards play.
+    const score = evaluateOmaha(
+      ["As", "Ah", "Ad", "Ac"].map(parseCard),
+      ["2s", "3h", "4d", "5c", "9s"].map(parseCard),
+    );
+    // Best is Ace-high straight (A + 2,3,4,5) using two hole + three board...
+    // Actually A + 2,3,4,5 uses one ace from hole and board 2,3,4,5 - only 3 board?
+    // Omaha needs exactly 3 board: A,A + 2,3,4 = pair of aces; A + 3,4,5 + 2 from...
+    // Pair of aces with kickers is expected, not quads.
+    expect(categoryOf(score)).toBe(HandCategory.Pair);
   });
 });
