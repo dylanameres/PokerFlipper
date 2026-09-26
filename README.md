@@ -1,58 +1,55 @@
 # PokerFlipper
 
-Software to simulate poker hands and teach strategy.
+A lightweight Texas Hold'em hand equity simulator.
 
-PokerFlipper is a browser-based Texas Hold'em equity calculator. Pick the
-Hero's hole cards (and optionally the Villain's cards and the community board),
-run a Monte Carlo simulation, and see win / tie / lose equity along with
-preflop strategy advice.
+Type hole cards (and an optional board), run a Monte Carlo simulation, get equity.
 
-## Tech stack
-
-- [Vite](https://vitejs.dev/) + [React](https://react.dev/) + TypeScript
-- [Vitest](https://vitest.dev/) for unit tests
-- The poker engine (card model, 7-card hand evaluator, and Monte Carlo
-  simulator) is plain TypeScript in `src/poker/` and runs entirely in the
-  browser.
-
-## Getting started
-
-Requirements: Node.js 22+ and npm.
+## Quick start
 
 ```bash
-npm install        # install dependencies
-npm run dev        # start the dev server on http://localhost:5173
+npm install
+npm run dev        # http://localhost:5173
 ```
+
+## Simulate in code
+
+```ts
+import { simulateHand } from "./poker";
+
+const result = simulateHand({
+  hands: [
+    ["As", "Ah"], // hero
+    ["7d", "2c"], // villain (use [] for a random hand)
+  ],
+  board: [], // optional, e.g. ["Ks", "Qd", "2h"]
+  iterations: 20000,
+});
+
+console.log(result.equities); // e.g. [87.5, 12.5]
+```
+
+Cards are `rank + suit`: ranks `2-9TJQKA`, suits `shdc` (spades/hearts/diamonds/clubs).
 
 ## Scripts
 
-| Command            | Description                                  |
-| ------------------ | -------------------------------------------- |
-| `npm run dev`      | Start the Vite dev server (port 5173).       |
-| `npm run build`    | Type-check and build the production bundle.   |
-| `npm run preview`  | Preview the production build (port 4173).     |
-| `npm test`         | Run the unit test suite once (Vitest).        |
-| `npm run test:watch` | Run tests in watch mode.                    |
-| `npm run lint`     | Lint the codebase with ESLint.               |
-| `npm run typecheck`| Type-check without emitting output.          |
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Dev server on port 5173 |
+| `npm test` | Unit tests (Vitest) |
+| `npm run build` | Production build |
+| `npm run typecheck` | TypeScript check |
 
-## Project structure
+## Layout
 
 ```
 src/
-  poker/
-    cards.ts         # card encoding / parsing / deck
-    evaluator.ts     # 5- and 7-card hand evaluation
-    simulate.ts      # Monte Carlo equity simulation
-    strategy.ts      # preflop starting-hand advice
-    __tests__/       # Vitest unit tests
-  components/
-    CardPicker.tsx   # card-selection UI
-  App.tsx            # main application
-  main.tsx           # React entry point
+  poker/          # engine (the useful part)
+    index.ts      # public exports
+    cards.ts      # card parse/encode
+    evaluator.ts  # 5- and 7-card hand ranking
+    simulate.ts   # simulateHand()
+  main.ts         # tiny form UI
+  style.css
 ```
 
-## Cloud Agent environment
-
-`.cursor/environment.json` configures the Cursor Cloud Agent environment:
-`npm ci` installs dependencies and a `dev-server` terminal runs `npm run dev`.
+The engine has no framework dependencies. The UI is plain HTML + TypeScript via Vite.

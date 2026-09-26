@@ -1,36 +1,29 @@
-import { fullDeck, type Card } from "./cards";
-import { categoryOf, evaluateBest, HandCategory } from "./evaluator";
+import { fullDeck, parseCard, type Card } from "./cards";
+import { evaluateBest } from "./evaluator";
 
-export interface PlayerInput {
-  /** Known hole cards. Empty entries mean "deal randomly". */
-  hole: Card[];
+export interface SimulateHandOptions {
+  /** Hole cards per player, as strings like "As" / "Ah". Empty array = random. */
+  hands: string[][];
+  /** Community cards (0–5). */
+  board?: string[];
+  /** Monte Carlo iterations (default 20_000). */
+  iterations?: number;
 }
 
-export interface SimulationInput {
-  players: PlayerInput[];
-  board: Card[];
+export interface SimulateHandResult {
   iterations: number;
+  /** Equity % per player (wins + shared ties). Sums to ~100. */
+  equities: number[];
+  wins: number[];
+  ties: number[];
+  losses: number[];
 }
 
-export interface PlayerResult {
-  wins: number;
-  ties: number;
-  losses: number;
-  equity: number;
-  winPct: number;
-  tiePct: number;
-  lossPct: number;
-  /** Distribution of made-hand categories across all iterations. */
-  categoryCounts: Record<HandCategory, number>;
+function parseHand(cards: string[]): Card[] {
+  return cards.map((c) => parseCard(c.trim()));
 }
 
-export interface SimulationResult {
-  iterations: number;
-  players: PlayerResult[];
-}
-
-function shuffleInPlace(deck: Card[], upTo: number): void {
-  // Fisher-Yates, only enough to fill the cards we need this iteration.
+function shufflePrefix(deck: Card[], upTo: number): void {
   for (let i = 0; i < upTo; i++) {
     const j = i + Math.floor(Math.random() * (deck.length - i));
     const tmp = deck[i];
@@ -39,89 +32,84 @@ function shuffleInPlace(deck: Card[], upTo: number): void {
   }
 }
 
-export function simulate(input: SimulationInput): SimulationResult {
-  const { players, board, iterations } = input;
+/**
+ * Monte Carlo equity for Texas Hold'em.
+ *
+ * @example
+ * simulateHand({ hands: [["As", "Ah"], ["7d", "2c"]] })
+ */
+export function simulateHand(opts: SimulateHandOptions): SimulateHandResult {
+  const iterations = opts.iterations ?? 20_000;
+  if (opts.hands.length < 1) {
+    throw new Error("Need at least one hand");
+  }
+
+  const players = opts.hands.map(parseHand);
+  for (const hole of players) {
+    if (hole.length > 2) throw new Error("Each hand can have at most 2 cards");
+  }
+
+  const board = (opts.board ?? []).map((c) => parseCard(c.trim()));
+  if (board.length > 5) throw new Error("Board can have at most 5 cards");
 
   const known = new Set<Card>();
-  for (const p of players) {
-    for (const c of p.hole) known.add(c);
+  for (const hole of players) {
+    for (const c of hole) {
+      if (known.has(c)) throw new Error(`Duplicate card: used more than once`);
+      known.add(c);
+    }
   }
-  for (const c of board) known.add(c);
+  for (const c of board) {
+    if (known.has(c)) throw new Error(`Duplicate card: used more than once`);
+    known.add(c);
+  }
 
   const remaining = fullDeck().filter((c) => !known.has(c));
-
-  const results: PlayerResult[] = players.map(() => ({
-    wins: 0,
-    ties: 0,
-    losses: 0,
-    equity: 0,
-    winPct: 0,
-    tiePct: 0,
-    lossPct: 0,
-    categoryCounts: {
-      [HandCategory.HighCard]: 0,
-      [HandCategory.Pair]: 0,
-      [HandCategory.TwoPair]: 0,
-      [HandCategory.ThreeOfAKind]: 0,
-      [HandCategory.Straight]: 0,
-      [HandCategory.Flush]: 0,
-      [HandCategory.FullHouse]: 0,
-      [HandCategory.FourOfAKind]: 0,
-      [HandCategory.StraightFlush]: 0,
-    },
-  }));
+  const n = players.length;
+  const wins = new Array(n).fill(0);
+  const ties = new Array(n).fill(0);
+  const losses = new Array(n).fill(0);
+  const equityAccum = new Array(n).fill(0);
 
   const boardNeeded = 5 - board.length;
-  const holesNeeded = players.map((p) => 2 - p.hole.length);
+  const holesNeeded = players.map((h) => 2 - h.length);
   const drawCount = boardNeeded + holesNeeded.reduce((a, b) => a + b, 0);
-
-  const scores = new Array<number>(players.length);
+  const scores = new Array<number>(n);
 
   for (let iter = 0; iter < iterations; iter++) {
-    shuffleInPlace(remaining, drawCount);
+    shufflePrefix(remaining, drawCount);
 
     let cursor = 0;
     const fullBoard = board.slice();
-    for (let i = 0; i < boardNeeded; i++) {
-      fullBoard.push(remaining[cursor++]);
-    }
+    for (let i = 0; i < boardNeeded; i++) fullBoard.push(remaining[cursor++]);
 
     let best = -1;
-    for (let pi = 0; pi < players.length; pi++) {
-      const hole = players[pi].hole.slice();
-      for (let i = 0; i < holesNeeded[pi]; i++) {
-        hole.push(remaining[cursor++]);
-      }
+    for (let pi = 0; pi < n; pi++) {
+      const hole = players[pi].slice();
+      for (let i = 0; i < holesNeeded[pi]; i++) hole.push(remaining[cursor++]);
       const score = evaluateBest([...hole, ...fullBoard]);
       scores[pi] = score;
-      results[pi].categoryCounts[categoryOf(score)]++;
       if (score > best) best = score;
     }
 
     let winners = 0;
-    for (let pi = 0; pi < players.length; pi++) {
-      if (scores[pi] === best) winners++;
-    }
-    for (let pi = 0; pi < players.length; pi++) {
+    for (let pi = 0; pi < n; pi++) if (scores[pi] === best) winners++;
+    for (let pi = 0; pi < n; pi++) {
       if (scores[pi] === best) {
-        if (winners === 1) {
-          results[pi].wins++;
-        } else {
-          results[pi].ties++;
-        }
-        results[pi].equity += 1 / winners;
+        if (winners === 1) wins[pi]++;
+        else ties[pi]++;
+        equityAccum[pi] += 1 / winners;
       } else {
-        results[pi].losses++;
+        losses[pi]++;
       }
     }
   }
 
-  for (const r of results) {
-    r.winPct = (r.wins / iterations) * 100;
-    r.tiePct = (r.ties / iterations) * 100;
-    r.lossPct = (r.losses / iterations) * 100;
-    r.equity = (r.equity / iterations) * 100;
-  }
-
-  return { iterations, players: results };
+  return {
+    iterations,
+    equities: equityAccum.map((e) => (e / iterations) * 100),
+    wins,
+    ties,
+    losses,
+  };
 }
