@@ -106,6 +106,7 @@ function dealFlop() {
   state.board[2] = flop[2];
   state.street = "flop";
   refreshEquity();
+  syncOutsSeat();
   render();
 }
 
@@ -115,6 +116,7 @@ function dealTurn() {
   state.board[3] = draw(state.deck, 1)[0];
   state.street = "turn";
   refreshEquity();
+  syncOutsSeat();
   render();
 }
 
@@ -192,6 +194,23 @@ function isWinner(seat: number): boolean {
 
 function canShowOuts(): boolean {
   return state.street === "flop" || state.street === "turn";
+}
+
+/** Worst trailing seat, or null if nobody is behind. Keeps `prefer` if still trailing. */
+function pickTrailingSeat(prefer: number | null = null): number | null {
+  if (!canShowOuts() || !state.equities) return null;
+  const trailers = state.equities
+    .map((eq, i) => ({ eq, i }))
+    .filter(({ i }) => isTrailing(i))
+    .sort((a, b) => a.eq - b.eq);
+  if (trailers.length === 0) return null;
+  if (prefer !== null && trailers.some((t) => t.i === prefer)) return prefer;
+  return trailers[0].i;
+}
+
+function syncOutsSeat() {
+  if (state.outsSeat === null) return;
+  state.outsSeat = pickTrailingSeat(state.outsSeat);
 }
 
 function renderSetup(): string {
