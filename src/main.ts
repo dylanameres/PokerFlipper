@@ -17,6 +17,7 @@ import {
   MAX_PLAYERS,
   MIN_PLAYERS,
   RANKS,
+  scoreHand,
   shuffle,
   SUITS,
   type Card,
@@ -193,32 +194,9 @@ function applyOnlineView(view: RoomView) {
     }
   }
 
-  // Equity: after reveal use both hands; otherwise your hand vs random.
-  if (view.street === "predeal" || view.yourSeat === null) {
-    state.equities = null;
-  } else if (view.revealed && view.opponentHoles) {
-    state.equities = liveEquity(view.gameType, [
-      view.yourHoles.filter((c): c is number => c !== null),
-      view.opponentHoles.filter((c): c is number => c !== null),
-    ], view.board.filter((c): c is number => c !== null));
-    // Map equity into seat order.
-    if (view.yourSeat === 1) {
-      state.equities = [state.equities[1], state.equities[0]];
-    }
-  } else if (view.yourHoles.every((c) => c !== null)) {
-    const mine = view.yourHoles.filter((c): c is number => c !== null);
-    const eq = liveEquity(
-      view.gameType,
-      [mine, []],
-      view.board.filter((c): c is number => c !== null),
-    );
-    state.equities =
-      view.yourSeat === 0 ? [eq[0], eq[1]] : [eq[1], eq[0]];
-  } else {
-    state.equities = null;
-  }
-
-  syncOutsSeat();
+  // Multiplayer: never show live equity / outs (private info + confusing %).
+  state.equities = null;
+  state.outsSeat = null;
   state.screen = "table";
   render();
 }
