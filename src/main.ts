@@ -48,7 +48,7 @@ interface AppState {
   showEquity: boolean;
   /** Larger card faces on the table. */
   largeCards: boolean;
-  /** Online multiplayer view from PartyKit (null in solo). */
+  /** Online multiplayer view from room server (null in solo). */
   online: RoomView | null;
   roomCode: string;
   joinCode: string;

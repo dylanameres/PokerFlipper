@@ -1,4 +1,4 @@
-/** Shared client ↔ PartyKit room protocol. */
+/** Shared client ↔ room server protocol. */
 
 export type GameType = "holdem" | "omaha";
 export type Street = "predeal" | "holes" | "flop" | "turn" | "river";

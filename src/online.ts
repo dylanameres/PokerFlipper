@@ -39,6 +39,7 @@ export function connectOnline(
   const host = partyHost();
   socket = new PartySocket({
     host,
+    party: "poker-room",
     room: roomCode.toUpperCase(),
   });
 

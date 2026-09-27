@@ -1,4 +1,4 @@
-import type * as Party from "partykit/server";
+import { routePartykitRequest, Server, type Connection } from "partyserver";
 import {
   HOLE_COUNT,
   MAX_ONLINE_PLAYERS,
@@ -15,11 +15,15 @@ type Seat = {
   holes: WireCard[];
 };
 
+export type Env = {
+  PokerRoom: DurableObjectNamespace<PokerRoom>;
+};
+
 function fullDeck(): number[] {
   return Array.from({ length: 52 }, (_, i) => i);
 }
 
-/** Cryptographically shuffled deck (runs on PartyKit / workerd). */
+/** Cryptographically shuffled deck (runs on Cloudflare Workers). */
 function secureShuffle(deck: number[]): number[] {
   const cards = deck.slice();
   const rand = new Uint32Array(1);
@@ -41,27 +45,26 @@ function emptyHoles(n: number): WireCard[] {
   return Array.from({ length: n }, () => null);
 }
 
-export default class PokerRoom implements Party.Server {
+export class PokerRoom extends Server<Env> {
   gameType: GameType = "holdem";
   street: Street = "predeal";
   deck: number[] = [];
   board: WireCard[] = emptyBoard();
   seats: Seat[] = [];
   hostId: string | null = null;
-
-  constructor(readonly room: Party.Room) {
-    this.resetSeats();
-  }
+  private seatsReady = false;
 
   private holes(): number {
     return HOLE_COUNT[this.gameType];
   }
 
-  private resetSeats() {
+  private ensureSeats() {
+    if (this.seatsReady) return;
     this.seats = Array.from({ length: MAX_ONLINE_PLAYERS }, () => ({
       connectionId: null,
       holes: emptyHoles(this.holes()),
     }));
+    this.seatsReady = true;
   }
 
   private newRoundKeepSeats() {
@@ -80,15 +83,18 @@ export default class PokerRoom implements Party.Server {
     return this.deck.splice(0, n);
   }
 
-  onConnect(conn: Party.Connection) {
-    // Assign first free seat.
+  onStart() {
+    this.ensureSeats();
+  }
+
+  onConnect(conn: Connection) {
+    this.ensureSeats();
     let seatIndex = this.seats.findIndex((s) => s.connectionId === null);
     if (seatIndex === -1) {
       this.send(conn, {
         type: "error",
         message: "Room is full (2 players).",
       });
-      // Still allow watching? For MVP, close.
       conn.close(4000, "Room full");
       return;
     }
@@ -99,7 +105,8 @@ export default class PokerRoom implements Party.Server {
     this.broadcastViews();
   }
 
-  onClose(conn: Party.Connection) {
+  onClose(conn: Connection) {
+    this.ensureSeats();
     for (const seat of this.seats) {
       if (seat.connectionId === conn.id) {
         seat.connectionId = null;
@@ -112,10 +119,11 @@ export default class PokerRoom implements Party.Server {
     this.broadcastViews();
   }
 
-  onMessage(message: string, sender: Party.Connection) {
+  onMessage(sender: Connection, message: string | ArrayBuffer) {
+    this.ensureSeats();
     let msg: ClientMessage;
     try {
-      msg = JSON.parse(message) as ClientMessage;
+      msg = JSON.parse(String(message)) as ClientMessage;
     } catch {
       this.send(sender, { type: "error", message: "Bad message" });
       return;
@@ -131,14 +139,13 @@ export default class PokerRoom implements Party.Server {
     }
   }
 
-  private handle(msg: ClientMessage, sender: Party.Connection) {
+  private handle(msg: ClientMessage, sender: Connection) {
     const isHost = sender.id === this.hostId;
 
     switch (msg.type) {
       case "hello": {
         if (isHost && this.street === "predeal") {
           this.gameType = msg.gameType;
-          // Resize hole slots if game type changed.
           for (const seat of this.seats) {
             if (seat.holes.length !== this.holes()) {
               seat.holes = emptyHoles(this.holes());
@@ -211,12 +218,12 @@ export default class PokerRoom implements Party.Server {
     return this.seats.every((s) => s.connectionId !== null);
   }
 
-  private send(conn: Party.Connection, msg: ServerMessage) {
+  private send(conn: Connection, msg: ServerMessage) {
     conn.send(JSON.stringify(msg));
   }
 
   private broadcastViews() {
-    for (const conn of this.room.getConnections()) {
+    for (const conn of this.getConnections()) {
       this.send(conn, this.viewFor(conn.id));
     }
   }
@@ -245,7 +252,7 @@ export default class PokerRoom implements Party.Server {
     const waiting = !this.bothSeated();
     let status: string;
     if (waiting) {
-      status = `Room ${this.room.id} — waiting for opponent…`;
+      status = `Room ${this.name} — waiting for opponent…`;
     } else if (this.street === "predeal") {
       status =
         connectionId === this.hostId
@@ -262,7 +269,7 @@ export default class PokerRoom implements Party.Server {
 
     return {
       type: "state",
-      roomId: this.room.id,
+      roomId: this.name,
       gameType: this.gameType,
       street: this.street,
       yourSeat: yourSeat >= 0 ? yourSeat : null,
@@ -284,3 +291,12 @@ export default class PokerRoom implements Party.Server {
 function seatAssign(seat: Seat, slot: number, card: number) {
   seat.holes[slot] = card;
 }
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    return (
+      (await routePartykitRequest(request, env)) ||
+      new Response("Not Found", { status: 404 })
+    );
+  },
+};

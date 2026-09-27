@@ -7,22 +7,25 @@
   "scripts": {
     "dev": "concurrently -k \"npm:dev:app\" \"npm:dev:party\"",
     "dev:app": "vite --host 0.0.0.0 --port 5173",
-    "dev:party": "npx --yes partykit@0.0.115 dev --port 1999",
+    "dev:party": "wrangler dev --port 1999",
     "build": "tsc && vite build",
     "preview": "vite preview --host 0.0.0.0 --port 4173",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "deploy:party": "npx --yes partykit@0.0.115 deploy"
+    "deploy:party": "wrangler deploy"
   },
   "dependencies": {
+    "partyserver": "^0.5.10",
     "partysocket": "^1.1.6"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260927.1",
     "concurrently": "^9.2.1",
     "esbuild": "0.21.5",
     "typescript": "^5.6.3",
     "vite": "^5.4.10",
-    "vitest": "^2.1.4"
+    "vitest": "^2.1.4",
+    "wrangler": "^4.141.0"
   },
   "allowScripts": {
     "esbuild": true,
