@@ -5,6 +5,7 @@ dist-ssr
 .vite
 coverage
 *.tsbuildinfo
+.wrangler
 
 # Editor / OS
 .DS_Store
