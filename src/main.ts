@@ -44,6 +44,10 @@ interface AppState {
   picking: { player: number; slot: number } | null;
   settingsOpen: boolean;
   fourColorDeck: boolean;
+  /** Solo only: show equity % and outs UI. */
+  showEquity: boolean;
+  /** Larger card faces on the table. */
+  largeCards: boolean;
   /** Online multiplayer view from PartyKit (null in solo). */
   online: RoomView | null;
   roomCode: string;
@@ -53,14 +57,29 @@ interface AppState {
 
 const SETTINGS_KEY = "pokerflipper-settings";
 
-function loadSettings(): { fourColorDeck: boolean } {
+interface SavedSettings {
+  fourColorDeck: boolean;
+  showEquity: boolean;
+  largeCards: boolean;
+}
+
+function loadSettings(): SavedSettings {
+  const defaults: SavedSettings = {
+    fourColorDeck: false,
+    showEquity: true,
+    largeCards: false,
+  };
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return { fourColorDeck: false };
-    const parsed = JSON.parse(raw) as { fourColorDeck?: boolean };
-    return { fourColorDeck: Boolean(parsed.fourColorDeck) };
+    if (!raw) return defaults;
+    const parsed = JSON.parse(raw) as Partial<SavedSettings>;
+    return {
+      fourColorDeck: Boolean(parsed.fourColorDeck),
+      showEquity: parsed.showEquity !== false,
+      largeCards: Boolean(parsed.largeCards),
+    };
   } catch {
-    return { fourColorDeck: false };
+    return defaults;
   }
 }
 
@@ -68,7 +87,11 @@ function saveSettings() {
   try {
     localStorage.setItem(
       SETTINGS_KEY,
-      JSON.stringify({ fourColorDeck: state.fourColorDeck }),
+      JSON.stringify({
+        fourColorDeck: state.fourColorDeck,
+        showEquity: state.showEquity,
+        largeCards: state.largeCards,
+      } satisfies SavedSettings),
     );
   } catch {
     // ignore quota / private-mode failures
@@ -92,6 +115,8 @@ const state: AppState = {
   picking: null,
   settingsOpen: false,
   fourColorDeck: saved.fourColorDeck,
+  showEquity: saved.showEquity,
+  largeCards: saved.largeCards,
   online: null,
   roomCode: "",
   joinCode: "",
@@ -374,6 +399,29 @@ function renderGearButton(): string {
   </button>`;
 }
 
+function settingsSwitchRow(
+  id: string,
+  title: string,
+  detail: string,
+  on: boolean,
+): string {
+  return `
+    <button type="button" class="settings__row" data-setting="${id}">
+      <span class="settings__copy">
+        <strong>${title}</strong>
+        <small>${detail}</small>
+      </span>
+      <span
+        class="ios-switch${on ? " ios-switch--on" : ""}"
+        role="switch"
+        aria-checked="${on}"
+      >
+        <span class="ios-switch__knob"></span>
+      </span>
+    </button>
+  `;
+}
+
 function renderSettingsPanel(): string {
   if (!state.settingsOpen) return "";
   return `
@@ -383,20 +431,26 @@ function renderSettingsPanel(): string {
           <h2 id="settings-title">Settings</h2>
           <button type="button" class="outs__close" id="btn-close-settings" aria-label="Close">×</button>
         </header>
-        <button type="button" class="settings__row" id="setting-four-color-row">
-          <span class="settings__copy">
-            <strong>4 color deck</strong>
-            <small>Spades black · Hearts red · Diamonds blue · Clubs green</small>
-          </span>
-          <span
-            class="ios-switch${state.fourColorDeck ? " ios-switch--on" : ""}"
-            id="setting-four-color"
-            role="switch"
-            aria-checked="${state.fourColorDeck}"
-          >
-            <span class="ios-switch__knob"></span>
-          </span>
-        </button>
+        <div class="settings__list">
+          ${settingsSwitchRow(
+            "fourColorDeck",
+            "4 color deck",
+            "Spades black · Hearts red · Diamonds blue · Clubs green",
+            state.fourColorDeck,
+          )}
+          ${settingsSwitchRow(
+            "showEquity",
+            "Show equity (solo)",
+            "Live win % and outs buttons in solo mode",
+            state.showEquity,
+          )}
+          ${settingsSwitchRow(
+            "largeCards",
+            "Large cards",
+            "Bigger card faces on the table",
+            state.largeCards,
+          )}
+        </div>
       </div>
     </div>
   `;
