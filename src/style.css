@@ -647,6 +647,28 @@ legend {
   line-height: 1;
 }
 
+html.large-cards .card {
+  width: 58px;
+  height: 82px;
+}
+
+html.large-cards .card__rank {
+  font-size: 1.35rem;
+}
+
+html.large-cards .card__suit {
+  font-size: 1.2rem;
+}
+
+html.large-cards .card--sm {
+  width: 46px;
+  height: 64px;
+}
+
+html.large-cards .picker__card {
+  font-size: 0.85rem;
+}
+
 .card--empty {
   border: 2px dashed var(--empty);
   background: rgba(0, 0, 0, 0.12);

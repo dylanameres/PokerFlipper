@@ -696,7 +696,7 @@ function renderTable(): string {
   const lead = leadingEquity();
   const online = state.mode === "online" ? state.online : null;
   const hostCanDeal = !online || online.youAreHost;
-  const showEquityUi = state.mode === "solo";
+  const showEquityUi = state.mode === "solo" && state.showEquity;
 
   const seats = state.hands
     .map((hand, i) => {
@@ -890,13 +890,17 @@ function hintForStreet(street: Street): string {
 }
 
 function render() {
+  document.documentElement.classList.toggle("large-cards", state.largeCards);
   const page = state.screen === "setup" ? renderSetup() : renderTable();
   root.innerHTML = page + renderSettingsPanel();
   bindEvents();
 }
 
-function toggleFourColorDeck() {
-  state.fourColorDeck = !state.fourColorDeck;
+function toggleSetting(key: "fourColorDeck" | "showEquity" | "largeCards") {
+  state[key] = !state[key];
+  if (key === "showEquity" && !state.showEquity) {
+    state.outsSeat = null;
+  }
   saveSettings();
   render();
 }
@@ -916,13 +920,17 @@ function bindSettingsEvents() {
       render();
     }
   });
-  document
-    .getElementById("setting-four-color-row")
-    ?.addEventListener("click", (e) => {
+  document.querySelectorAll<HTMLButtonElement>("[data-setting]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      toggleFourColorDeck();
+      const key = btn.dataset.setting as
+        | "fourColorDeck"
+        | "showEquity"
+        | "largeCards";
+      toggleSetting(key);
     });
+  });
 }
 
 function bindEvents() {
