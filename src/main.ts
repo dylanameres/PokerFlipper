@@ -590,7 +590,7 @@ function renderSetup(): string {
   `;
 
   const onlineFields = `
-        <p class="setup-note">2 players · deck shuffled on the server · hole cards stay private until the river</p>
+        <p class="setup-note">2 players · 1000 chips each · bet / call / fold each street · hole cards private until showdown</p>
         <button type="button" class="btn btn--primary" id="btn-create-room">Create room</button>
         <div class="join-row">
           <input
