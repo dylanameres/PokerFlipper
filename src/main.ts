@@ -735,6 +735,51 @@ function isWinner(seat: number): boolean {
   return state.equities[seat] >= leadingEquity() - 0.05 && leadingEquity() > 0;
 }
 
+function clampBetAmount(n: number, min: number, max: number): number {
+  if (!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, Math.round(n)));
+}
+
+/** Highest wager on this street (what we're facing / matching). */
+function facingBetSize(online: RoomView): number {
+  if (online.yourSeat === null) return online.bigBlind;
+  const yours = online.seats[online.yourSeat]?.bet ?? 0;
+  return yours + online.toCall;
+}
+
+/** Bet/raise-to presets: preflop 2x/3x face; postflop 33%/67% pot; always all-in. */
+function betSizePresets(
+  online: RoomView,
+): { label: string; amount: number }[] {
+  const min = online.minBet;
+  const max = online.maxBet;
+  const allIn = { label: "All-in", amount: max };
+
+  if (online.street === "holes") {
+    const face = facingBetSize(online);
+    const base = face > 0 ? face : online.bigBlind;
+    return [
+      { label: "2x", amount: clampBetAmount(base * 2, min, max) },
+      { label: "3x", amount: clampBetAmount(base * 3, min, max) },
+      allIn,
+    ];
+  }
+
+  const pot = online.pot;
+  const toCall = online.toCall;
+  const face = facingBetSize(online);
+  const potFrac = (frac: number) => {
+    if (toCall === 0) return clampBetAmount(pot * frac, min, max);
+    // Pot-relative raise-to: face + frac × (pot + call).
+    return clampBetAmount(face + (pot + toCall) * frac, min, max);
+  };
+  return [
+    { label: "33%", amount: potFrac(1 / 3) },
+    { label: "67%", amount: potFrac(2 / 3) },
+    allIn,
+  ];
+}
+
 function renderBettingBar(online: RoomView): string {
   if (!online.bettingOpen && !online.canAct) return "";
   if (!online.canAct) {
@@ -745,13 +790,22 @@ function renderBettingBar(online: RoomView): string {
     : `Call ${online.toCall}`;
   const betLabel = online.toCall > 0 ? "Raise to" : "Bet";
   const defaultAmt = online.minBet || 20;
+  const presets = online.canBet
+    ? betSizePresets(online)
+        .map(
+          (p) =>
+            `<button type="button" class="btn btn--preset" data-bet-preset="${p.amount}" title="${betLabel} ${p.amount}">${p.label}</button>`,
+        )
+        .join("")
+    : "";
   return `
     <div class="bet-bar">
       <button type="button" class="btn btn--ghost" id="btn-fold">Fold</button>
       <button type="button" class="btn" id="btn-call">${callLabel}</button>
       ${
         online.canBet
-          ? `<label class="bet-bar__amount">
+          ? `<div class="bet-bar__presets" role="group" aria-label="Bet size presets">${presets}</div>
+            <label class="bet-bar__amount">
               <span>${betLabel}</span>
               <input type="number" id="bet-amount" min="${online.minBet}" max="${online.maxBet}" value="${defaultAmt}" step="10" />
             </label>
@@ -1403,6 +1457,16 @@ function bindEvents() {
   });
   document.getElementById("btn-call")?.addEventListener("click", () => {
     sendOnline({ type: "call" });
+  });
+  document.querySelectorAll<HTMLButtonElement>("[data-bet-preset]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const input = document.getElementById(
+        "bet-amount",
+      ) as HTMLInputElement | null;
+      if (!input) return;
+      input.value = btn.dataset.betPreset ?? input.value;
+      input.focus();
+    });
   });
   document.getElementById("btn-bet")?.addEventListener("click", () => {
     const input = document.getElementById("bet-amount") as HTMLInputElement | null;

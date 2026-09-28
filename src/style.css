@@ -938,6 +938,33 @@ html.large-cards .table-deck__card {
   font-size: 0.9rem;
 }
 
+.bet-bar__presets {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.btn--preset {
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: #1a2420;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #e8f0eb;
+}
+
+.btn--preset:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn--preset:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .bet-bar__amount {
   display: inline-flex;
   align-items: center;
