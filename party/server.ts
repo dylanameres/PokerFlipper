@@ -511,10 +511,19 @@ export class PokerRoom extends Server<Env> {
       this.street !== "predeal" &&
       this.bettingRoundComplete();
 
+    let roomId = "";
+    try {
+      roomId = this.name;
+    } catch {
+      roomId = "";
+    }
+
     const waiting = !this.bothSeated();
     let status: string;
     if (waiting) {
-      status = `Room ${this.name} — waiting for opponent…`;
+      status = roomId
+        ? `Room ${roomId} — waiting for opponent…`
+        : "Waiting for opponent…";
     } else if (this.street === "predeal") {
       status =
         connectionId === this.hostId
@@ -547,7 +556,7 @@ export class PokerRoom extends Server<Env> {
 
     return {
       type: "state",
-      roomId: this.name,
+      roomId,
       gameType: this.gameType,
       street: this.street,
       yourSeat: yourSeat >= 0 ? yourSeat : null,

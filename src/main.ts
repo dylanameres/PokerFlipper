@@ -201,7 +201,8 @@ function applyOnlineView(view: RoomView) {
   state.gameType = view.gameType;
   state.playerCount = 2;
   state.street = view.street;
-  state.roomCode = view.roomId;
+  // Prefer the code the client joined with; server name can be blank on some Workers paths.
+  if (view.roomId) state.roomCode = view.roomId;
   state.board = view.board.map((c) => c);
   state.picking = null;
 
@@ -788,11 +789,13 @@ function renderTable(): string {
   const sidebarOpen =
     showEquityUi && state.outsSeat !== null && canShowOuts();
 
-  const meta = online
-    ? `${gameLabel(state.gameType)} · Room <strong>${online.roomId}</strong> · ${
-        online.youAreHost ? "Host" : "Guest"
-      } · Pot <strong>${online.pot}</strong>`
-    : `${gameLabel(state.gameType)} · ${state.playerCount} players · ${holes} hole cards`;
+  const roomCode = state.roomCode || online?.roomId || "";
+  const meta =
+    state.mode === "online"
+      ? `${gameLabel(state.gameType)} · ${
+          online ? (online.youAreHost ? "Host" : "Guest") : "Connecting…"
+        }${online ? ` · Pot <strong>${online.pot}</strong>` : ""}`
+      : `${gameLabel(state.gameType)} · ${state.playerCount} players · ${holes} hole cards`;
 
   return `
     <main class="page page--table${sidebarOpen ? " page--table-sidebar" : ""}">
@@ -802,9 +805,16 @@ function renderTable(): string {
             <h1>PokerFlipper</h1>
             <p class="meta">${meta}</p>
             ${
+              state.mode === "online" && roomCode
+                ? `<p class="room-code">Room code <strong id="room-code-value">${roomCode}</strong></p>`
+                : ""
+            }
+            ${
               online
                 ? `<p class="meta">${online.status}</p>`
-                : ""
+                : state.mode === "online"
+                  ? `<p class="meta">Connecting to room…</p>`
+                  : ""
             }
             ${
               state.onlineError
