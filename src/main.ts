@@ -4,6 +4,7 @@ import {
   rememberDealKeys,
   resetDealAnimationState,
   runDealAnimations,
+  ensureDealKeysVisible,
 } from "./dealAnim";
 import {
   connectOnline,
@@ -1280,6 +1281,8 @@ function render() {
       requestAnimationFrame(() => {
         requestAnimationFrame(() => runDealAnimations(incoming));
       });
+      // Background tabs may throttle rAF forever — never leave cards at opacity 0.
+      window.setTimeout(() => ensureDealKeysVisible(incoming), 1200);
     }
     const historyList = document.querySelector(".history__list");
     if (historyList) historyList.scrollTop = historyList.scrollHeight;

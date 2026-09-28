@@ -132,6 +132,11 @@ function revealAll(keys: string[]) {
   }
 }
 
+/** Clear pending-deal on these keys if still hidden (background-tab / missed rAF). */
+export function ensureDealKeysVisible(keys: string[]): void {
+  revealAll(keys);
+}
+
 function flyCard(
   deckRect: DOMRect,
   target: HTMLElement,
