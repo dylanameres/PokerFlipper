@@ -1096,8 +1096,6 @@ html.large-cards .picker__card {
 .card--back {
   border: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
-  position: relative;
-  overflow: hidden;
   /* Default / Ocean blue */
   background:
     repeating-linear-gradient(
@@ -1107,6 +1105,17 @@ html.large-cards .picker__card {
       #24508f 6px,
       #24508f 12px
     );
+}
+
+/* Relative only when we need ::before/::after ornament — keep deck stack absolute. */
+.card--back:not(.table-deck__card) {
+  position: relative;
+  overflow: hidden;
+}
+
+.table-deck__card.card--back {
+  position: absolute;
+  overflow: visible;
 }
 
 html[data-card-back="red"] .card--back:not(.card-back-option__preview) {

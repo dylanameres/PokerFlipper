@@ -1215,17 +1215,20 @@ function bindSettingsEvents() {
       toggleSetting(key);
     });
   });
-  document.querySelectorAll<HTMLButtonElement>("[data-card-back]").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const id = btn.dataset.cardBack;
-      if (!isCardBackId(id) || id === state.cardBack) return;
-      state.cardBack = id;
-      saveSettings();
-      render();
+  // Only the picker buttons — not <html data-card-back>, which would steal every click.
+  document
+    .querySelectorAll<HTMLButtonElement>("button.card-back-option[data-card-back]")
+    .forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = btn.dataset.cardBack;
+        if (!isCardBackId(id) || id === state.cardBack) return;
+        state.cardBack = id;
+        saveSettings();
+        render();
+      });
     });
-  });
 }
 
 function bindEvents() {
