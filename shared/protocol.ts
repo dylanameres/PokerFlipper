@@ -12,6 +12,9 @@ export const BIG_BLIND = 50;
 /** Minimum open / raise size (matches the big blind). */
 export const MIN_BET = BIG_BLIND;
 
+/** Bump when the room server wire format changes in a breaking/feature way. */
+export const ROOM_PROTOCOL = 2;
+
 export type ClientMessage =
   | { type: "hello"; gameType: GameType }
   | { type: "deal_hands" }
@@ -41,6 +44,8 @@ export interface SeatPublic {
  */
 export interface RoomView {
   type: "state";
+  /** Present on current Workers builds; missing means an outdated deploy. */
+  protocol?: number;
   roomId: string;
   gameType: GameType;
   street: Street;

@@ -4,6 +4,7 @@ import {
   HOLE_COUNT,
   MAX_ONLINE_PLAYERS,
   MIN_BET,
+  ROOM_PROTOCOL,
   SMALL_BLIND,
   STARTING_CHIPS,
   type ClientMessage,
@@ -630,6 +631,7 @@ export class PokerRoom extends Server<Env> {
 
     return {
       type: "state",
+      protocol: ROOM_PROTOCOL,
       roomId,
       gameType: this.gameType,
       street: this.street,

@@ -1,4 +1,4 @@
-import type { RoomView } from "../shared/protocol";
+import { ROOM_PROTOCOL, type RoomView } from "../shared/protocol";
 import {
   connectOnline,
   disconnectOnline,
@@ -916,6 +916,13 @@ function renderTable(): string {
             ${
               state.onlineError
                 ? `<p class="error">${state.onlineError}</p>`
+                : ""
+            }
+            ${
+              online &&
+              (typeof online.protocol !== "number" ||
+                online.protocol < ROOM_PROTOCOL)
+                ? `<p class="error">Room server is outdated (no blinds). On your Mac run: <code>git pull && npm install && npm run deploy:party</code></p>`
                 : ""
             }
           </div>
