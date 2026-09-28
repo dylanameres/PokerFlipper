@@ -2,6 +2,8 @@ import { routePartykitRequest, Server, type Connection } from "partyserver";
 import {
   HOLE_COUNT,
   MAX_ONLINE_PLAYERS,
+  MIN_BET,
+  STARTING_CHIPS,
   type ClientMessage,
   type GameType,
   type RoomView,
@@ -9,10 +11,15 @@ import {
   type Street,
   type WireCard,
 } from "../shared/protocol";
+import { scoreHand } from "../src/poker/equity";
 
 type Seat = {
   connectionId: string | null;
   holes: WireCard[];
+  chips: number;
+  betStreet: number;
+  folded: boolean;
+  acted: boolean;
 };
 
 export type Env = {
@@ -52,6 +59,12 @@ export class PokerRoom extends Server<Env> {
   board: WireCard[] = emptyBoard();
   seats: Seat[] = [];
   hostId: string | null = null;
+  pot = 0;
+  currentBet = 0;
+  actionSeat: number | null = null;
+  bettingOpen = false;
+  handOver = false;
+  winnerSeats: number[] = [];
   private seatsReady = false;
 
   private holes(): number {
@@ -63,6 +76,10 @@ export class PokerRoom extends Server<Env> {
     this.seats = Array.from({ length: MAX_ONLINE_PLAYERS }, () => ({
       connectionId: null,
       holes: emptyHoles(this.holes()),
+      chips: STARTING_CHIPS,
+      betStreet: 0,
+      folded: false,
+      acted: false,
     }));
     this.seatsReady = true;
   }
@@ -71,8 +88,17 @@ export class PokerRoom extends Server<Env> {
     this.street = "predeal";
     this.board = emptyBoard();
     this.deck = [];
+    this.pot = 0;
+    this.currentBet = 0;
+    this.actionSeat = null;
+    this.bettingOpen = false;
+    this.handOver = false;
+    this.winnerSeats = [];
     for (const seat of this.seats) {
       seat.holes = emptyHoles(this.holes());
+      seat.betStreet = 0;
+      seat.folded = false;
+      seat.acted = false;
     }
   }
 
@@ -81,6 +107,150 @@ export class PokerRoom extends Server<Env> {
       throw new Error("Deck exhausted");
     }
     return this.deck.splice(0, n);
+  }
+
+  private activeSeats(): number[] {
+    return this.seats
+      .map((s, i) => (s.connectionId && !s.folded ? i : -1))
+      .filter((i) => i >= 0);
+  }
+
+  private seatIndexOf(connectionId: string): number {
+    return this.seats.findIndex((s) => s.connectionId === connectionId);
+  }
+
+  private putChips(seat: Seat, amount: number) {
+    const n = Math.min(amount, seat.chips);
+    seat.chips -= n;
+    seat.betStreet += n;
+    this.pot += n;
+    return n;
+  }
+
+  private startBettingRound() {
+    this.currentBet = 0;
+    for (const seat of this.seats) {
+      seat.betStreet = 0;
+      seat.acted = false;
+    }
+    const active = this.activeSeats();
+    if (active.length < 2 || active.some((i) => this.seats[i].chips === 0)) {
+      // All-in already matched — skip betting this street.
+      this.bettingOpen = false;
+      this.actionSeat = null;
+      if (this.street === "river") {
+        this.showdown();
+      }
+      return;
+    }
+    this.bettingOpen = true;
+    this.actionSeat = active[0];
+  }
+
+  private bettingRoundComplete(): boolean {
+    const active = this.activeSeats();
+    if (active.length <= 1) return true;
+    for (const i of active) {
+      const s = this.seats[i];
+      if (!s.acted) return false;
+      const matched = s.betStreet === this.currentBet;
+      const allInShort = s.chips === 0 && s.betStreet <= this.currentBet;
+      if (!matched && !allInShort) return false;
+    }
+    return true;
+  }
+
+  private afterAction() {
+    if (this.activeSeats().length <= 1) {
+      this.finishByFold();
+      return;
+    }
+    if (!this.bettingRoundComplete()) {
+      this.advanceAction();
+      return;
+    }
+    this.bettingOpen = false;
+    this.actionSeat = null;
+    if (this.street === "river") {
+      this.showdown();
+    }
+  }
+
+  private advanceAction() {
+    const active = this.activeSeats();
+    if (active.length === 0 || this.actionSeat === null) {
+      this.actionSeat = null;
+      return;
+    }
+    const start = this.actionSeat;
+    for (let step = 1; step <= MAX_ONLINE_PLAYERS; step++) {
+      const next = (start + step) % MAX_ONLINE_PLAYERS;
+      if (!active.includes(next)) continue;
+      const s = this.seats[next];
+      const needsAction =
+        !s.acted || (s.betStreet < this.currentBet && s.chips > 0);
+      if (needsAction) {
+        this.actionSeat = next;
+        return;
+      }
+    }
+    this.actionSeat = null;
+  }
+
+  private finishByFold() {
+    this.bettingOpen = false;
+    this.actionSeat = null;
+    this.handOver = true;
+    const winners = this.activeSeats();
+    this.winnerSeats = winners;
+    for (const i of winners) {
+      this.seats[i].chips += this.pot;
+    }
+    this.pot = 0;
+  }
+
+  private showdown() {
+    this.bettingOpen = false;
+    this.actionSeat = null;
+    this.handOver = true;
+    const active = this.activeSeats();
+    if (active.length === 0) {
+      this.winnerSeats = [];
+      return;
+    }
+    if (active.length === 1) {
+      this.winnerSeats = active;
+      this.seats[active[0]].chips += this.pot;
+      this.pot = 0;
+      return;
+    }
+
+    const board = this.board.filter((c): c is number => c !== null);
+    const scores = active.map((i) => {
+      const holes = this.seats[i].holes.filter((c): c is number => c !== null);
+      return scoreHand(this.gameType, holes, board);
+    });
+    const best = Math.max(...scores);
+    const winners = active.filter((_, idx) => scores[idx] === best);
+    this.winnerSeats = winners;
+    const share = Math.floor(this.pot / winners.length);
+    let remainder = this.pot - share * winners.length;
+    for (const i of winners) {
+      this.seats[i].chips += share + (remainder > 0 ? 1 : 0);
+      if (remainder > 0) remainder -= 1;
+    }
+    this.pot = 0;
+  }
+
+  private requireActor(sender: Connection): number {
+    if (!this.bettingOpen || this.handOver) {
+      throw new Error("Betting is closed");
+    }
+    const seat = this.seatIndexOf(sender.id);
+    if (seat < 0) throw new Error("You are not seated");
+    if (this.seats[seat].folded) throw new Error("You already folded");
+    if (seat !== this.actionSeat) throw new Error("Not your turn");
+    return seat;
   }
 
   onStart() {
@@ -158,11 +328,24 @@ export class PokerRoom extends Server<Env> {
       case "deal_hands": {
         if (!isHost) throw new Error("Only the host can deal");
         if (!this.bothSeated()) throw new Error("Need 2 players");
+        if (this.street !== "predeal" && !this.handOver) {
+          throw new Error("Finish the hand first");
+        }
+        // Rebuy if anyone is broke.
+        if (this.seats.some((s) => s.chips <= 0)) {
+          for (const seat of this.seats) seat.chips = STARTING_CHIPS;
+        }
         this.deck = secureShuffle(fullDeck());
         this.board = emptyBoard();
+        this.pot = 0;
+        this.handOver = false;
+        this.winnerSeats = [];
         const n = this.holes();
         for (const seat of this.seats) {
           seat.holes = emptyHoles(n);
+          seat.folded = false;
+          seat.betStreet = 0;
+          seat.acted = false;
         }
         for (let h = 0; h < n; h++) {
           for (let p = 0; p < MAX_ONLINE_PLAYERS; p++) {
@@ -170,36 +353,37 @@ export class PokerRoom extends Server<Env> {
           }
         }
         this.street = "holes";
+        this.startBettingRound();
         this.broadcastViews();
         return;
       }
       case "deal_flop": {
-        if (!isHost) throw new Error("Only the host can deal");
-        if (this.street !== "holes") throw new Error("Deal hands first");
-        this.draw(1); // burn
+        this.requireHostDeal(isHost, "holes");
+        this.draw(1);
         const flop = this.draw(3);
         this.board[0] = flop[0];
         this.board[1] = flop[1];
         this.board[2] = flop[2];
         this.street = "flop";
+        this.startBettingRound();
         this.broadcastViews();
         return;
       }
       case "deal_turn": {
-        if (!isHost) throw new Error("Only the host can deal");
-        if (this.street !== "flop") throw new Error("Deal flop first");
+        this.requireHostDeal(isHost, "flop");
         this.draw(1);
         this.board[3] = this.draw(1)[0];
         this.street = "turn";
+        this.startBettingRound();
         this.broadcastViews();
         return;
       }
       case "deal_river": {
-        if (!isHost) throw new Error("Only the host can deal");
-        if (this.street !== "turn") throw new Error("Deal turn first");
+        this.requireHostDeal(isHost, "turn");
         this.draw(1);
         this.board[4] = this.draw(1)[0];
         this.street = "river";
+        this.startBettingRound();
         this.broadcastViews();
         return;
       }
@@ -209,8 +393,64 @@ export class PokerRoom extends Server<Env> {
         this.broadcastViews();
         return;
       }
+      case "fold": {
+        const seat = this.requireActor(sender);
+        this.seats[seat].folded = true;
+        this.seats[seat].acted = true;
+        this.afterAction();
+        this.broadcastViews();
+        return;
+      }
+      case "call": {
+        const seat = this.requireActor(sender);
+        const s = this.seats[seat];
+        const toCall = Math.max(0, this.currentBet - s.betStreet);
+        if (toCall > 0) this.putChips(s, toCall);
+        s.acted = true;
+        this.afterAction();
+        this.broadcastViews();
+        return;
+      }
+      case "bet": {
+        const seat = this.requireActor(sender);
+        const s = this.seats[seat];
+        const amount = Math.floor(Number(msg.amount));
+        if (!Number.isFinite(amount)) throw new Error("Invalid bet");
+        const maxTotal = s.betStreet + s.chips;
+        if (this.currentBet === 0) {
+          if (amount < MIN_BET && amount !== maxTotal) {
+            throw new Error(`Min bet is ${MIN_BET}`);
+          }
+          if (amount < 1) throw new Error("Bet must be positive");
+        } else if (amount <= this.currentBet && amount !== maxTotal) {
+          throw new Error("Raise must be larger than the current bet");
+        }
+        if (amount > maxTotal) throw new Error("Not enough chips");
+        const add = amount - s.betStreet;
+        if (add < 0) throw new Error("Invalid bet");
+        this.putChips(s, add);
+        this.currentBet = s.betStreet;
+        s.acted = true;
+        // Everyone else still in must respond.
+        for (let i = 0; i < this.seats.length; i++) {
+          if (i === seat || this.seats[i].folded) continue;
+          this.seats[i].acted = false;
+        }
+        this.afterAction();
+        this.broadcastViews();
+        return;
+      }
       default:
         throw new Error("Unknown message");
+    }
+  }
+
+  private requireHostDeal(isHost: boolean, expected: Street) {
+    if (!isHost) throw new Error("Only the host can deal");
+    if (this.handOver) throw new Error("Hand is over — deal hands for a new one");
+    if (this.street !== expected) throw new Error("Wrong street");
+    if (this.bettingOpen || !this.bettingRoundComplete()) {
+      throw new Error("Finish betting first");
     }
   }
 
@@ -229,10 +469,11 @@ export class PokerRoom extends Server<Env> {
   }
 
   private viewFor(connectionId: string): RoomView {
-    const yourSeat = this.seats.findIndex((s) => s.connectionId === connectionId);
-    const revealed = this.street === "river";
-    const n = this.holes();
+    const yourSeat = this.seatIndexOf(connectionId);
+    // Reveal opponent holes only after a full river showdown.
+    const doReveal = this.handOver && this.street === "river" && this.board[4] !== null;
 
+    const n = this.holes();
     let yourHoles: WireCard[] = emptyHoles(n);
     let opponentHidden: boolean[] = Array.from({ length: n }, () => false);
     let opponentHoles: WireCard[] | null = null;
@@ -241,13 +482,34 @@ export class PokerRoom extends Server<Env> {
       yourHoles = this.seats[yourSeat].holes.slice();
       const opp = this.seats[1 - yourSeat];
       const oppDealt = opp.holes.every((c) => c !== null);
-      if (revealed) {
+      if (doReveal) {
         opponentHoles = opp.holes.slice();
         opponentHidden = Array.from({ length: n }, () => false);
       } else if (oppDealt || this.street !== "predeal") {
         opponentHidden = opp.holes.map((c) => c !== null);
       }
     }
+
+    const toCall =
+      yourSeat >= 0
+        ? Math.max(0, this.currentBet - this.seats[yourSeat].betStreet)
+        : 0;
+    const your = yourSeat >= 0 ? this.seats[yourSeat] : null;
+    const maxBet = your ? your.betStreet + your.chips : 0;
+    const minBet =
+      this.currentBet === 0
+        ? Math.min(MIN_BET, maxBet || MIN_BET)
+        : Math.min(Math.max(this.currentBet + MIN_BET, this.currentBet + 1), maxBet || this.currentBet + 1);
+    const canAct =
+      this.bettingOpen &&
+      yourSeat >= 0 &&
+      yourSeat === this.actionSeat &&
+      !this.handOver;
+    const bettingComplete =
+      !this.bettingOpen &&
+      !this.handOver &&
+      this.street !== "predeal" &&
+      this.bettingRoundComplete();
 
     const waiting = !this.bothSeated();
     let status: string;
@@ -258,13 +520,29 @@ export class PokerRoom extends Server<Env> {
         connectionId === this.hostId
           ? "Both players ready. Deal hands when you want."
           : "Waiting for host to deal.";
-    } else if (revealed) {
-      status = "River is out — hands revealed.";
-    } else {
+    } else if (this.handOver) {
+      if (this.winnerSeats.length === 2) status = "Chop — pot split.";
+      else if (this.winnerSeats.length === 1) {
+        const w = this.winnerSeats[0];
+        status =
+          yourSeat === w ? "You win the pot." : `P${w + 1} wins the pot.`;
+      } else {
+        status = "Hand over.";
+      }
+    } else if (this.bettingOpen && this.actionSeat !== null) {
+      status =
+        yourSeat === this.actionSeat
+          ? toCall > 0
+            ? `Your turn — ${toCall} to call.`
+            : "Your turn — check or bet."
+          : `Waiting for P${this.actionSeat + 1}…`;
+    } else if (bettingComplete) {
       status =
         connectionId === this.hostId
-          ? "You are dealing. Opponent cannot see your hole cards."
-          : "Host is dealing. Your hole cards are private.";
+          ? "Betting done — deal the next street."
+          : "Betting done — waiting for host.";
+    } else {
+      status = "Playing…";
     }
 
     return {
@@ -277,13 +555,28 @@ export class PokerRoom extends Server<Env> {
       seats: this.seats.map((s) => ({
         filled: s.connectionId !== null,
         connected: s.connectionId !== null,
+        chips: s.chips,
+        bet: s.betStreet,
+        folded: s.folded,
       })),
       board: this.board.slice(),
       yourHoles,
       opponentHidden,
       opponentHoles,
-      revealed,
+      revealed: doReveal,
       status,
+      pot: this.pot,
+      toCall,
+      minBet,
+      maxBet,
+      canAct,
+      canCheck: canAct && toCall === 0,
+      canBet: canAct && maxBet > this.currentBet,
+      bettingOpen: this.bettingOpen,
+      bettingComplete,
+      handOver: this.handOver,
+      winnerSeats: this.winnerSeats.slice(),
+      actionSeat: this.actionSeat,
     };
   }
 }

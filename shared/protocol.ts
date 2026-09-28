@@ -6,17 +6,26 @@ export type Street = "predeal" | "holes" | "flop" | "turn" | "river";
 /** Wire format for a card: 0–51, or null empty. */
 export type WireCard = number | null;
 
+export const STARTING_CHIPS = 1000;
+export const MIN_BET = 20;
+
 export type ClientMessage =
   | { type: "hello"; gameType: GameType }
   | { type: "deal_hands" }
   | { type: "deal_flop" }
   | { type: "deal_turn" }
   | { type: "deal_river" }
-  | { type: "new_round" };
+  | { type: "new_round" }
+  | { type: "fold" }
+  | { type: "call" }
+  | { type: "bet"; amount: number };
 
 export interface SeatPublic {
   filled: boolean;
   connected: boolean;
+  chips: number;
+  bet: number;
+  folded: boolean;
 }
 
 /**
@@ -39,6 +48,21 @@ export interface RoomView {
   opponentHoles: WireCard[] | null;
   revealed: boolean;
   status: string;
+  pot: number;
+  toCall: number;
+  minBet: number;
+  maxBet: number;
+  canAct: boolean;
+  /** Facing no wager → check; else call. */
+  canCheck: boolean;
+  canBet: boolean;
+  bettingOpen: boolean;
+  /** Betting finished; host may deal the next street (or hand is over). */
+  bettingComplete: boolean;
+  handOver: boolean;
+  /** Empty when no winner yet; one seat on win; both on chop. */
+  winnerSeats: number[];
+  actionSeat: number | null;
 }
 
 export type ServerMessage = RoomView | { type: "error"; message: string };

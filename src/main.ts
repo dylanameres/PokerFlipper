@@ -17,7 +17,6 @@ import {
   MAX_PLAYERS,
   MIN_PLAYERS,
   RANKS,
-  scoreHand,
   shuffle,
   SUITS,
   type Card,
@@ -512,27 +511,38 @@ function isTrailing(seat: number): boolean {
 }
 
 function isWinner(seat: number): boolean {
-  if (state.street !== "river") return false;
-
-  // Solo: use equity. Online: compare revealed made hands (no equity UI).
-  if (state.mode === "solo") {
-    if (!state.equities) return false;
-    return state.equities[seat] >= leadingEquity() - 0.05 && leadingEquity() > 0;
+  if (state.mode === "online") {
+    return Boolean(state.online?.winnerSeats?.includes(seat));
   }
+  if (state.street !== "river" || !state.equities) return false;
+  return state.equities[seat] >= leadingEquity() - 0.05 && leadingEquity() > 0;
+}
 
-  const view = state.online;
-  if (!view?.revealed) return false;
-  if (!holesComplete()) return false;
-  const board = filledBoard();
-  const scores = state.hands.map((h) =>
-    scoreHand(
-      state.gameType,
-      h.filter((c): c is Card => c !== null),
-      board,
-    ),
-  );
-  const best = Math.max(...scores);
-  return scores[seat] === best;
+function renderBettingBar(online: RoomView): string {
+  if (!online.bettingOpen && !online.canAct) return "";
+  if (!online.canAct) {
+    return `<div class="bet-bar bet-bar--wait"><span>Waiting for opponent…</span></div>`;
+  }
+  const callLabel = online.canCheck
+    ? "Check"
+    : `Call ${online.toCall}`;
+  const betLabel = online.toCall > 0 ? "Raise to" : "Bet";
+  const defaultAmt = online.minBet || 20;
+  return `
+    <div class="bet-bar">
+      <button type="button" class="btn btn--ghost" id="btn-fold">Fold</button>
+      <button type="button" class="btn" id="btn-call">${callLabel}</button>
+      ${
+        online.canBet
+          ? `<label class="bet-bar__amount">
+              <span>${betLabel}</span>
+              <input type="number" id="bet-amount" min="${online.minBet}" max="${online.maxBet}" value="${defaultAmt}" step="10" />
+            </label>
+            <button type="button" class="btn btn--primary" id="btn-bet">${betLabel}</button>`
+          : ""
+      }
+    </div>
+  `;
 }
 
 function canShowOuts(): boolean {
@@ -697,6 +707,7 @@ function renderTable(): string {
   const online = state.mode === "online" ? state.online : null;
   const hostCanDeal = !online || online.youAreHost;
   const showEquityUi = state.mode === "solo" && state.showEquity;
+  const streetReady = !online || online.bettingComplete;
 
   const seats = state.hands
     .map((hand, i) => {
@@ -706,7 +717,15 @@ function renderTable(): string {
       const isLead =
         eq !== null && state.street !== "predeal" && eq >= lead - 0.05 && lead > 0;
       const eqClass = isLead ? "seat__equity seat__equity--lead" : "seat__equity";
-      const seatClass = winner ? "seat seat--winner" : "seat";
+      const folded = Boolean(online?.seats[i]?.folded);
+      const seatClass = [
+        "seat",
+        winner ? "seat--winner" : "",
+        folded ? "seat--folded" : "",
+        online?.actionSeat === i ? "seat--turn" : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
       const isYou = online?.yourSeat === i;
       const oppSeat = online && online.yourSeat !== null ? 1 - online.yourSeat : -1;
       const showBacks =
@@ -714,6 +733,12 @@ function renderTable(): string {
         i === oppSeat &&
         !online.revealed &&
         online.opponentHidden.some(Boolean);
+      const seatInfo = online?.seats[i];
+      const chipsHtml = seatInfo
+        ? `<div class="seat__chips">${seatInfo.chips.toLocaleString()} chips${
+            seatInfo.bet > 0 ? ` · bet ${seatInfo.bet}` : ""
+          }${folded ? " · folded" : ""}</div>`
+        : "";
 
       return `
         <div class="${seatClass}" style="${seatStyle(i, state.playerCount)}" data-seat="${i}">
@@ -732,6 +757,7 @@ function renderTable(): string {
           <div class="seat__label">${isYou ? "You" : `P${i + 1}`}${
             online?.seats[i]?.connected === false ? " (away)" : ""
           }</div>
+          ${chipsHtml}
           ${
             eq !== null
               ? `<div class="${eqClass}">${eq.toFixed(1)}%</div>`
@@ -747,20 +773,25 @@ function renderTable(): string {
     })
     .join("");
 
-  const canFlop = state.street === "holes" && hostCanDeal;
-  const canTurn = state.street === "flop" && hostCanDeal;
-  const canRiver = state.street === "turn" && hostCanDeal;
+  const canFlop = state.street === "holes" && hostCanDeal && streetReady;
+  const canTurn = state.street === "flop" && hostCanDeal && streetReady;
+  const canRiver = state.street === "turn" && hostCanDeal && streetReady;
   const canDealHands =
     hostCanDeal &&
-    (state.mode === "solo" ||
-      Boolean(online && online.seats.every((s) => s.filled)));
+    (state.mode === "solo"
+      ? true
+      : Boolean(
+          online &&
+            online.seats.every((s) => s.filled) &&
+            (online.street === "predeal" || online.handOver),
+        ));
   const sidebarOpen =
     showEquityUi && state.outsSeat !== null && canShowOuts();
 
   const meta = online
     ? `${gameLabel(state.gameType)} · Room <strong>${online.roomId}</strong> · ${
         online.youAreHost ? "Host" : "Guest"
-      }`
+      } · Pot <strong>${online.pot}</strong>`
     : `${gameLabel(state.gameType)} · ${state.playerCount} players · ${holes} hole cards`;
 
   return `
@@ -789,13 +820,17 @@ function renderTable(): string {
 
         <div class="felt">
           <div class="board">
-            <div class="board__label">Board</div>
+            <div class="board__label">Board${
+              online ? ` · Pot ${online.pot}` : ""
+            }</div>
             <div class="board__cards">
               ${state.board.map((c) => renderCard(c)).join("")}
             </div>
           </div>
           ${seats}
         </div>
+
+        ${online ? renderBettingBar(online) : ""}
 
         <div class="actions">
           <button type="button" class="btn btn--primary" id="btn-deal-holes" ${
@@ -992,6 +1027,18 @@ function bindEvents() {
   document
     .getElementById("btn-deal-river")
     ?.addEventListener("click", dealRiver);
+
+  document.getElementById("btn-fold")?.addEventListener("click", () => {
+    sendOnline({ type: "fold" });
+  });
+  document.getElementById("btn-call")?.addEventListener("click", () => {
+    sendOnline({ type: "call" });
+  });
+  document.getElementById("btn-bet")?.addEventListener("click", () => {
+    const input = document.getElementById("bet-amount") as HTMLInputElement | null;
+    const amount = Number(input?.value ?? 0);
+    sendOnline({ type: "bet", amount });
+  });
 
   document.querySelectorAll<HTMLButtonElement>("[data-outs]").forEach((btn) => {
     btn.addEventListener("click", () => {

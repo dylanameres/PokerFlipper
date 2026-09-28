@@ -452,6 +452,59 @@ legend {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
+.seat__chips {
+  margin-top: 3px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #f0e2b0;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+
+.seat--folded {
+  opacity: 0.45;
+}
+
+.seat--turn .seat__label {
+  color: #ffe29a;
+}
+
+.bet-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+  margin-top: 18px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.bet-bar--wait {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.bet-bar__amount {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.bet-bar__amount input {
+  width: 88px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font: inherit;
+}
+
 .seat__equity {
   margin-top: 4px;
   font-size: 0.95rem;
