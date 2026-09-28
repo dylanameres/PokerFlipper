@@ -13,9 +13,17 @@ export type OnlineHandlers = {
 };
 
 let socket: PartySocket | null = null;
+let connectTimer: ReturnType<typeof setTimeout> | null = null;
 
 function partyHost(): string {
   return import.meta.env.VITE_PARTYKIT_HOST || "127.0.0.1:1999";
+}
+
+function clearConnectTimer() {
+  if (connectTimer) {
+    clearTimeout(connectTimer);
+    connectTimer = null;
+  }
 }
 
 export function randomRoomCode(): string {
@@ -37,13 +45,26 @@ export function connectOnline(
   disconnectOnline();
 
   const host = partyHost();
+  let opened = false;
+  let gotView = false;
+
   socket = new PartySocket({
     host,
     party: "poker-room",
     room: roomCode.toUpperCase(),
+    maxRetries: 6,
   });
 
+  connectTimer = setTimeout(() => {
+    if (!opened || !gotView) {
+      handlers.onError(
+        `Still connecting to ${host}. Check VITE_PARTYKIT_HOST and run npm run deploy:party.`,
+      );
+    }
+  }, 8000);
+
   socket.addEventListener("open", () => {
+    opened = true;
     sendOnline({ type: "hello", gameType });
   });
 
@@ -59,10 +80,16 @@ export function connectOnline(
       handlers.onError(msg.message);
       return;
     }
+    gotView = true;
+    clearConnectTimer();
     handlers.onView(msg);
   });
 
   socket.addEventListener("close", () => {
+    clearConnectTimer();
+    if (!gotView) {
+      handlers.onError(`Could not connect to ${host}`);
+    }
     handlers.onClose();
   });
 
@@ -77,6 +104,7 @@ export function sendOnline(msg: ClientMessage): void {
 }
 
 export function disconnectOnline(): void {
+  clearConnectTimer();
   if (socket) {
     socket.close();
     socket = null;

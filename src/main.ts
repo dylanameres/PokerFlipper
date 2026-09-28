@@ -49,6 +49,8 @@ interface AppState {
   largeCards: boolean;
   /** Online multiplayer view from room server (null in solo). */
   online: RoomView | null;
+  /** False when connected to a room server that predates chip betting. */
+  onlineSupportsBetting: boolean;
   roomCode: string;
   joinCode: string;
   onlineError: string | null;
@@ -117,6 +119,7 @@ const state: AppState = {
   showEquity: saved.showEquity,
   largeCards: saved.largeCards,
   online: null,
+  onlineSupportsBetting: true,
   roomCode: "",
   joinCode: "",
   onlineError: null,
@@ -195,9 +198,40 @@ function startSoloTable() {
   render();
 }
 
+function normalizeOnlineView(view: RoomView): RoomView {
+  // Older Workers deploys omit chip/betting fields — fill defaults so render never throws.
+  const seats = (view.seats ?? []).map((s) => ({
+    filled: Boolean(s.filled),
+    connected: Boolean(s.connected),
+    chips: typeof s.chips === "number" ? s.chips : 0,
+    bet: typeof s.bet === "number" ? s.bet : 0,
+    folded: Boolean(s.folded),
+  }));
+  const hasBetting = typeof view.pot === "number";
+  return {
+    ...view,
+    seats,
+    pot: typeof view.pot === "number" ? view.pot : 0,
+    toCall: typeof view.toCall === "number" ? view.toCall : 0,
+    minBet: typeof view.minBet === "number" ? view.minBet : 20,
+    maxBet: typeof view.maxBet === "number" ? view.maxBet : 0,
+    canAct: Boolean(view.canAct),
+    canCheck: Boolean(view.canCheck),
+    canBet: Boolean(view.canBet),
+    bettingOpen: Boolean(view.bettingOpen),
+    // Legacy servers have no betting round — treat streets as ready to deal.
+    bettingComplete: hasBetting ? Boolean(view.bettingComplete) : true,
+    handOver: Boolean(view.handOver),
+    winnerSeats: Array.isArray(view.winnerSeats) ? view.winnerSeats : [],
+    actionSeat: view.actionSeat ?? null,
+  };
+}
+
 function applyOnlineView(view: RoomView) {
-  state.online = view;
+  state.onlineSupportsBetting = typeof view.pot === "number";
+  state.online = normalizeOnlineView(view);
   state.mode = "online";
+  state.onlineError = null;
   state.gameType = view.gameType;
   state.playerCount = 2;
   state.street = view.street;
@@ -735,11 +769,12 @@ function renderTable(): string {
         !online.revealed &&
         online.opponentHidden.some(Boolean);
       const seatInfo = online?.seats[i];
-      const chipsHtml = seatInfo
-        ? `<div class="seat__chips">${seatInfo.chips.toLocaleString()} chips${
-            seatInfo.bet > 0 ? ` · bet ${seatInfo.bet}` : ""
-          }${folded ? " · folded" : ""}</div>`
-        : "";
+      const chipsHtml =
+        seatInfo && typeof seatInfo.chips === "number"
+          ? `<div class="seat__chips">${seatInfo.chips.toLocaleString()} chips${
+              seatInfo.bet > 0 ? ` · bet ${seatInfo.bet}` : ""
+            }${folded ? " · folded" : ""}</div>`
+          : "";
 
       return `
         <div class="${seatClass}" style="${seatStyle(i, state.playerCount)}" data-seat="${i}">
@@ -784,7 +819,9 @@ function renderTable(): string {
       : Boolean(
           online &&
             online.seats.every((s) => s.filled) &&
-            (online.street === "predeal" || online.handOver),
+            (online.street === "predeal" ||
+              online.handOver ||
+              !state.onlineSupportsBetting),
         ));
   const sidebarOpen =
     showEquityUi && state.outsSeat !== null && canShowOuts();
