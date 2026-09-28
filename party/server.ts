@@ -256,7 +256,6 @@ export class PokerRoom extends Server<Env> {
     this.bettingOpen = false;
     this.actionSeat = null;
     this.handOver = true;
-    this.rotateButtonNextHand = true;
     const winners = this.activeSeats();
     this.winnerSeats = winners;
     for (const i of winners) {
@@ -269,7 +268,6 @@ export class PokerRoom extends Server<Env> {
     this.bettingOpen = false;
     this.actionSeat = null;
     this.handOver = true;
-    this.rotateButtonNextHand = true;
     const active = this.activeSeats();
     if (active.length === 0) {
       this.winnerSeats = [];
@@ -392,9 +390,10 @@ export class PokerRoom extends Server<Env> {
         if (this.seats.some((s) => s.chips <= 0)) {
           for (const seat of this.seats) seat.chips = STARTING_CHIPS;
         }
-        if (this.rotateButtonNextHand) {
-          this.buttonSeat = 1 - this.buttonSeat;
-          this.rotateButtonNextHand = false;
+        // Rotate blinds left each new hand (skip the very first deal).
+        if (this.handsDealt > 0) {
+          this.buttonSeat =
+            (this.buttonSeat - 1 + MAX_ONLINE_PLAYERS) % MAX_ONLINE_PLAYERS;
         }
         this.deck = secureShuffle(fullDeck());
         this.board = emptyBoard();
@@ -414,8 +413,10 @@ export class PokerRoom extends Server<Env> {
             seatAssign(this.seats[p], h, this.draw(1)[0]);
           }
         }
+        // Blinds post immediately when hole cards are dealt.
         this.street = "holes";
         this.postBlinds();
+        this.handsDealt += 1;
         this.startPreflopBetting();
         this.broadcastViews();
         return;
