@@ -32,7 +32,7 @@ export interface SeatPublic {
   chips: number;
   bet: number;
   folded: boolean;
-  /** Heads-up dealer / small blind. */
+  /** Dealer button (heads-up: also the big blind). */
   isButton: boolean;
   isSmallBlind: boolean;
   isBigBlind: boolean;

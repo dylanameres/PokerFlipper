@@ -68,7 +68,7 @@ export class PokerRoom extends Server<Env> {
   bettingOpen = false;
   handOver = false;
   winnerSeats: number[] = [];
-  /** Heads-up dealer button (= small blind). Rotates left each dealt hand. */
+  /** Dealer button (heads-up: also BB). Rotates left each dealt hand. */
   buttonSeat = 0;
   /** Hands successfully dealt this room session (drives blind rotation). */
   private handsDealt = 0;
@@ -121,17 +121,15 @@ export class PokerRoom extends Server<Env> {
   }
 
   /**
-   * Heads-up: dealer posts the small blind.
-   * Multi-way (future): SB is left of the button.
+   * SB is left of the dealer. In heads-up that makes the other seat SB
+   * and the dealer the BB (button wraps around as big blind).
    */
   private smallBlindSeat(): number {
-    if (MAX_ONLINE_PLAYERS === 2) return this.buttonSeat;
     return this.seatLeftOf(this.buttonSeat);
   }
 
-  /** Heads-up: the non-dealer posts the big blind. */
+  /** BB is left of the SB (dealer in heads-up). */
   private bigBlindSeat(): number {
-    if (MAX_ONLINE_PLAYERS === 2) return this.seatLeftOf(this.buttonSeat);
     return this.seatLeftOf(this.smallBlindSeat());
   }
 
