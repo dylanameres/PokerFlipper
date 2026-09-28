@@ -1,5 +1,11 @@
 import { ROOM_PROTOCOL, type RoomView } from "../shared/protocol";
 import {
+  newDealKeys,
+  rememberDealKeys,
+  resetDealAnimationState,
+  runDealAnimations,
+} from "./dealAnim";
+import {
   connectOnline,
   disconnectOnline,
   randomRoomCode,
@@ -435,6 +441,7 @@ function backToSetup() {
   state.onlineError = null;
   state.outsSeat = null;
   state.picking = null;
+  resetDealAnimationState();
   render();
 }
 
@@ -532,17 +539,28 @@ function renderCard(
     pickPlayer?: number;
     pickSlot?: number;
     faceDown?: boolean;
+    dealKey?: string;
+    pendingDeal?: boolean;
   } = {},
 ): string {
-  const { compact = false, pickPlayer, pickSlot, faceDown = false } = opts;
+  const {
+    compact = false,
+    pickPlayer,
+    pickSlot,
+    faceDown = false,
+    dealKey,
+    pendingDeal = false,
+  } = opts;
   const pickAttrs =
     !faceDown && pickPlayer !== undefined && pickSlot !== undefined
       ? ` data-pick-player="${pickPlayer}" data-pick-slot="${pickSlot}" role="button" tabindex="0"`
       : "";
   const pickClass = pickAttrs ? " card--pickable" : "";
+  const dealAttr = dealKey ? ` data-deal-key="${dealKey}"` : "";
+  const pendingClass = pendingDeal ? " card--pending-deal" : "";
 
   if (faceDown) {
-    return `<div class="card card--back${compact ? " card--sm" : ""}" aria-label="Face-down card"></div>`;
+    return `<div class="card card--back${compact ? " card--sm" : ""}${pendingClass}"${dealAttr} aria-label="Face-down card"></div>`;
   }
   if (card === null) {
     return `<div class="card card--empty${compact ? " card--sm" : ""}${pickClass}"${pickAttrs} aria-label="Empty card slot"></div>`;
@@ -552,11 +570,36 @@ function renderCard(
   const suit = str[1];
   const color = suitColorClass(suit);
   return `
-    <div class="card card--face ${color}${compact ? " card--sm" : ""}${pickClass}" title="${str}"${pickAttrs} aria-label="${str}">
+    <div class="card card--face ${color}${compact ? " card--sm" : ""}${pickClass}${pendingClass}" title="${str}"${pickAttrs}${dealAttr} aria-label="${str}">
       <span class="card__rank">${rank}</span>
       <span class="card__suit">${SUIT_GLYPH[suit]}</span>
     </div>
   `;
+}
+
+/** Occupied hole/board slots for deal-animation diffs. */
+function currentDealKeys(): string[] {
+  const keys: string[] = [];
+  const online = state.mode === "online" ? state.online : null;
+  for (let s = 0; s < state.hands.length; s++) {
+    const oppSeat =
+      online && online.yourSeat !== null ? 1 - online.yourSeat : -1;
+    const showBacks =
+      online &&
+      s === oppSeat &&
+      !online.revealed &&
+      online.opponentHidden.some(Boolean);
+    for (let slot = 0; slot < state.hands[s].length; slot++) {
+      const filled =
+        state.hands[s][slot] !== null ||
+        Boolean(showBacks && online?.opponentHidden[slot]);
+      if (filled) keys.push(`h-${s}-${slot}`);
+    }
+  }
+  for (let i = 0; i < state.board.length; i++) {
+    if (state.board[i] !== null) keys.push(`b-${i}`);
+  }
+  return keys;
 }
 
 function seatStyle(index: number, total: number): string {
@@ -784,6 +827,7 @@ function renderTable(): string {
   const hostCanDeal = !online || online.youAreHost;
   const showEquityUi = state.mode === "solo" && state.showEquity;
   const streetReady = !online || online.bettingComplete;
+  const freshDealKeys = new Set(newDealKeys(currentDealKeys()));
 
   const seats = state.hands
     .map((hand, i) => {
@@ -843,13 +887,20 @@ function renderTable(): string {
           ${roleBadges ? `<div class="seat__badges">${roleBadges}</div>` : ""}
           <div class="seat__cards">
             ${hand
-              .map((c, slot) =>
-                renderCard(c, {
+              .map((c, slot) => {
+                const dealKey = `h-${i}-${slot}`;
+                const faceDown = Boolean(
+                  showBacks && online?.opponentHidden[slot],
+                );
+                const filled = c !== null || faceDown;
+                return renderCard(c, {
                   pickPlayer: state.mode === "solo" ? i : undefined,
                   pickSlot: state.mode === "solo" ? slot : undefined,
-                  faceDown: Boolean(showBacks && online?.opponentHidden[slot]),
-                }),
-              )
+                  faceDown,
+                  dealKey: filled ? dealKey : undefined,
+                  pendingDeal: filled && freshDealKeys.has(dealKey),
+                });
+              })
               .join("")}
           </div>
           <div class="seat__label">${isYou ? "You" : `P${i + 1}`}${
@@ -939,10 +990,26 @@ function renderTable(): string {
         </header>
 
         <div class="felt">
+          <div class="table-deck" id="table-deck" aria-hidden="true" title="Deck">
+            <div class="table-deck__stack">
+              <span class="card card--back table-deck__card"></span>
+              <span class="card card--back table-deck__card"></span>
+              <span class="card card--back table-deck__card"></span>
+            </div>
+          </div>
           <div class="board">
             ${online ? renderPotDisplay(online.pot) : `<div class="board__label">Board</div>`}
             <div class="board__cards">
-              ${state.board.map((c) => renderCard(c)).join("")}
+              ${state.board
+                .map((c, i) => {
+                  const dealKey = `b-${i}`;
+                  const filled = c !== null;
+                  return renderCard(c, {
+                    dealKey: filled ? dealKey : undefined,
+                    pendingDeal: filled && freshDealKeys.has(dealKey),
+                  });
+                })
+                .join("")}
             </div>
           </div>
           ${seats}
@@ -1044,9 +1111,23 @@ function hintForStreet(street: Street): string {
 
 function render() {
   document.documentElement.classList.toggle("large-cards", state.largeCards);
+  const dealKeys =
+    state.screen === "table" ? currentDealKeys() : ([] as string[]);
+  const incoming = state.screen === "table" ? newDealKeys(dealKeys) : [];
   const page = state.screen === "setup" ? renderSetup() : renderTable();
   root.innerHTML = page + renderSettingsPanel();
   bindEvents();
+  if (state.screen === "table") {
+    rememberDealKeys(dealKeys);
+    if (incoming.length) {
+      // Double-rAF so layout is settled before measuring deck → seat paths.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => runDealAnimations(incoming));
+      });
+    }
+  } else {
+    resetDealAnimationState();
+  }
 }
 
 function toggleSetting(key: "fourColorDeck" | "showEquity" | "largeCards") {
