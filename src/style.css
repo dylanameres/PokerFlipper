@@ -607,8 +607,11 @@ html.large-cards .table-deck__card {
   opacity: 0 !important;
 }
 
-.card--flying {
+/* Must beat `.card--back { position: relative }` or ghosts land in document flow
+   and stretch the page (temporary scrollbar under the table). */
+.card.card--back.card--flying {
   position: fixed;
+  overflow: visible;
   z-index: 80;
   margin: 0;
   pointer-events: none;
