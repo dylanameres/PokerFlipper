@@ -1092,7 +1092,7 @@ function renderTable(): string {
           <button type="button" class="btn btn--primary" id="btn-deal-holes" ${
             canDealHands ? "" : "disabled"
           }>
-            ${state.handsDealtCount >= 2 ? "Redeal" : "Deal hands"}
+            ${state.handsDealtCount >= 1 ? "Redeal" : "Deal hands"}
           </button>
           <button type="button" class="btn" id="btn-deal-flop" ${
             canFlop ? "" : "disabled"
