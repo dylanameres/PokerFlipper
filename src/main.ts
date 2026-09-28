@@ -1069,7 +1069,7 @@ function renderTable(): string {
             </div>
           </div>
           <div class="board">
-            ${online ? renderPotDisplay(online.pot) : `<div class="board__label">Board</div>`}
+            ${online ? renderPotDisplay(online.pot) : ""}
             <div class="board__cards">
               ${state.board
                 .map((c, i) => {

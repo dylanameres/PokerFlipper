@@ -556,8 +556,8 @@ legend {
 
 .table-deck {
   position: absolute;
-  /* Sit just left of the board so multi-seat layouts don't cover hole cards. */
-  left: 32%;
+  /* Halfway between the outer seat-safe spot and the board. */
+  left: 25%;
   top: 46%;
   transform: translate(-50%, -50%);
   z-index: 4;
