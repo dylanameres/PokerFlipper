@@ -245,13 +245,15 @@ function potChipTone(pot: number): string {
 function renderPotDisplay(pot: number): string {
   const tone = potChipTone(pot);
   const stack = Math.min(5, Math.max(1, Math.ceil(pot / 50) || 1));
+  // i=0 is the top chip; later chips sit below it.
   const chips = Array.from({ length: stack }, (_, i) => {
-    const offset = (stack - 1 - i) * 3;
-    return `<span class="chip chip--${tone}" style="--chip-y: ${offset}px" aria-hidden="true"></span>`;
+    const offset = i * 4;
+    const z = stack - i;
+    return `<span class="chip chip--${tone}" style="--chip-y: ${offset}px; --chip-z: ${z}" aria-hidden="true"></span>`;
   }).join("");
   return `
     <div class="pot" data-tone="${tone}">
-      <div class="pot__stack">${chips}</div>
+      <div class="pot__stack" style="--stack-n: ${stack}">${chips}</div>
       <div class="pot__copy">
         <span class="pot__label">Pot</span>
         <strong class="pot__amount">${pot.toLocaleString()}</strong>

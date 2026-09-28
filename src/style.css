@@ -446,13 +446,15 @@ legend {
 .pot__stack {
   position: relative;
   width: 28px;
-  height: 28px;
+  height: calc(26px + (var(--stack-n, 1) - 1) * 4px);
+  flex-shrink: 0;
 }
 
 .chip {
   position: absolute;
   left: 0;
-  bottom: var(--chip-y, 0);
+  top: var(--chip-y, 0);
+  z-index: var(--chip-z, 1);
   width: 26px;
   height: 26px;
   border-radius: 50%;

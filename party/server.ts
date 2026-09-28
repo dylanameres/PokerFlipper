@@ -67,10 +67,10 @@ export class PokerRoom extends Server<Env> {
   bettingOpen = false;
   handOver = false;
   winnerSeats: number[] = [];
-  /** Heads-up dealer button (= small blind). Rotates each dealt hand. */
+  /** Heads-up dealer button (= small blind). Rotates left each dealt hand. */
   buttonSeat = 0;
-  /** True after at least one hand has finished — next deal rotates the button. */
-  private rotateButtonNextHand = false;
+  /** Hands successfully dealt this room session (drives blind rotation). */
+  private handsDealt = 0;
   private seatsReady = false;
 
   private holes(): number {
