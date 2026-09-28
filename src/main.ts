@@ -206,14 +206,20 @@ function normalizeOnlineView(view: RoomView): RoomView {
     chips: typeof s.chips === "number" ? s.chips : 0,
     bet: typeof s.bet === "number" ? s.bet : 0,
     folded: Boolean(s.folded),
+    isButton: Boolean(s.isButton),
+    isSmallBlind: Boolean(s.isSmallBlind),
+    isBigBlind: Boolean(s.isBigBlind),
   }));
   const hasBetting = typeof view.pot === "number";
   return {
     ...view,
     seats,
     pot: typeof view.pot === "number" ? view.pot : 0,
+    smallBlind: typeof view.smallBlind === "number" ? view.smallBlind : 25,
+    bigBlind: typeof view.bigBlind === "number" ? view.bigBlind : 50,
+    buttonSeat: view.buttonSeat ?? null,
     toCall: typeof view.toCall === "number" ? view.toCall : 0,
-    minBet: typeof view.minBet === "number" ? view.minBet : 20,
+    minBet: typeof view.minBet === "number" ? view.minBet : 50,
     maxBet: typeof view.maxBet === "number" ? view.maxBet : 0,
     canAct: Boolean(view.canAct),
     canCheck: Boolean(view.canCheck),
@@ -225,6 +231,33 @@ function normalizeOnlineView(view: RoomView): RoomView {
     winnerSeats: Array.isArray(view.winnerSeats) ? view.winnerSeats : [],
     actionSeat: view.actionSeat ?? null,
   };
+}
+
+/** Chip color tier for pot / stack display. */
+function potChipTone(pot: number): string {
+  if (pot >= 1000) return "black";
+  if (pot >= 500) return "green";
+  if (pot >= 250) return "blue";
+  if (pot >= 100) return "red";
+  return "white";
+}
+
+function renderPotDisplay(pot: number): string {
+  const tone = potChipTone(pot);
+  const stack = Math.min(5, Math.max(1, Math.ceil(pot / 50) || 1));
+  const chips = Array.from({ length: stack }, (_, i) => {
+    const offset = (stack - 1 - i) * 3;
+    return `<span class="chip chip--${tone}" style="--chip-y: ${offset}px" aria-hidden="true"></span>`;
+  }).join("");
+  return `
+    <div class="pot" data-tone="${tone}">
+      <div class="pot__stack">${chips}</div>
+      <div class="pot__copy">
+        <span class="pot__label">Pot</span>
+        <strong class="pot__amount">${pot.toLocaleString()}</strong>
+      </div>
+    </div>
+  `;
 }
 
 function applyOnlineView(view: RoomView) {
@@ -625,7 +658,7 @@ function renderSetup(): string {
   `;
 
   const onlineFields = `
-        <p class="setup-note">2 players · 1000 chips each · bet / call / fold each street · hole cards private until showdown</p>
+        <p class="setup-note">2 players · 1000 chips · blinds 25/50 · button rotates each hand · hole cards private until showdown</p>
         <button type="button" class="btn btn--primary" id="btn-create-room">Create room</button>
         <div class="join-row">
           <input
@@ -769,6 +802,15 @@ function renderTable(): string {
         !online.revealed &&
         online.opponentHidden.some(Boolean);
       const seatInfo = online?.seats[i];
+      const roleBadges = seatInfo
+        ? [
+            seatInfo.isButton ? `<span class="seat__badge seat__badge--d" title="Dealer">D</span>` : "",
+            seatInfo.isSmallBlind ? `<span class="seat__badge seat__badge--sb" title="Small blind">SB</span>` : "",
+            seatInfo.isBigBlind ? `<span class="seat__badge seat__badge--bb" title="Big blind">BB</span>` : "",
+          ]
+            .filter(Boolean)
+            .join("")
+        : "";
       const chipsHtml =
         seatInfo && typeof seatInfo.chips === "number"
           ? `<div class="seat__chips">${seatInfo.chips.toLocaleString()} chips${
@@ -779,6 +821,7 @@ function renderTable(): string {
       return `
         <div class="${seatClass}" style="${seatStyle(i, state.playerCount)}" data-seat="${i}">
           ${winner ? `<div class="seat__winner">Winner</div>` : ""}
+          ${roleBadges ? `<div class="seat__badges">${roleBadges}</div>` : ""}
           <div class="seat__cards">
             ${hand
               .map((c, slot) =>
@@ -831,7 +874,11 @@ function renderTable(): string {
     state.mode === "online"
       ? `${gameLabel(state.gameType)} · ${
           online ? (online.youAreHost ? "Host" : "Guest") : "Connecting…"
-        }${online ? ` · Pot <strong>${online.pot}</strong>` : ""}`
+        }${
+          online
+            ? ` · Blinds ${online.smallBlind}/${online.bigBlind}`
+            : ""
+        }`
       : `${gameLabel(state.gameType)} · ${state.playerCount} players · ${holes} hole cards`;
 
   return `
@@ -867,9 +914,7 @@ function renderTable(): string {
 
         <div class="felt">
           <div class="board">
-            <div class="board__label">Board${
-              online ? ` · Pot ${online.pot}` : ""
-            }</div>
+            ${online ? renderPotDisplay(online.pot) : `<div class="board__label">Board</div>`}
             <div class="board__cards">
               ${state.board.map((c) => renderCard(c)).join("")}
             </div>

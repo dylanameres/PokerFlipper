@@ -7,7 +7,10 @@ export type Street = "predeal" | "holes" | "flop" | "turn" | "river";
 export type WireCard = number | null;
 
 export const STARTING_CHIPS = 1000;
-export const MIN_BET = 20;
+export const SMALL_BLIND = 25;
+export const BIG_BLIND = 50;
+/** Minimum open / raise size (matches the big blind). */
+export const MIN_BET = BIG_BLIND;
 
 export type ClientMessage =
   | { type: "hello"; gameType: GameType }
@@ -26,6 +29,10 @@ export interface SeatPublic {
   chips: number;
   bet: number;
   folded: boolean;
+  /** Heads-up dealer / small blind. */
+  isButton: boolean;
+  isSmallBlind: boolean;
+  isBigBlind: boolean;
 }
 
 /**
@@ -49,6 +56,9 @@ export interface RoomView {
   revealed: boolean;
   status: string;
   pot: number;
+  smallBlind: number;
+  bigBlind: number;
+  buttonSeat: number | null;
   toCall: number;
   minBet: number;
   maxBet: number;

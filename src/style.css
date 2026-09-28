@@ -429,6 +429,128 @@ legend {
   margin-bottom: 8px;
 }
 
+.pot {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 auto 10px;
+  padding: 8px 16px 8px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 226, 154, 0.35);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 8px 22px rgba(0, 0, 0, 0.35);
+}
+
+.pot__stack {
+  position: relative;
+  width: 28px;
+  height: 28px;
+}
+
+.chip {
+  position: absolute;
+  left: 0;
+  bottom: var(--chip-y, 0);
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px dashed rgba(255, 255, 255, 0.55);
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 255, 255, 0.18),
+    0 2px 3px rgba(0, 0, 0, 0.45);
+}
+
+.chip--white {
+  background: radial-gradient(circle at 35% 30%, #fff 0%, #d8d8d8 70%, #b0b0b0 100%);
+  border-color: rgba(80, 80, 80, 0.45);
+}
+
+.chip--red {
+  background: radial-gradient(circle at 35% 30%, #ff6b6b 0%, #c62828 70%, #8e0000 100%);
+}
+
+.chip--blue {
+  background: radial-gradient(circle at 35% 30%, #64b5f6 0%, #1565c0 70%, #0d47a1 100%);
+}
+
+.chip--green {
+  background: radial-gradient(circle at 35% 30%, #81c784 0%, #2e7d32 70%, #1b5e20 100%);
+}
+
+.chip--black {
+  background: radial-gradient(circle at 35% 30%, #666 0%, #212121 70%, #000 100%);
+  border-color: rgba(240, 210, 120, 0.55);
+}
+
+.pot__copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.1;
+  text-align: left;
+}
+
+.pot__label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 226, 154, 0.75);
+}
+
+.pot__amount {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #fff8e1;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.55);
+  font-variant-numeric: tabular-nums;
+}
+
+.pot[data-tone="red"] {
+  border-color: rgba(255, 120, 120, 0.45);
+}
+.pot[data-tone="blue"] {
+  border-color: rgba(100, 180, 255, 0.45);
+}
+.pot[data-tone="green"] {
+  border-color: rgba(120, 220, 140, 0.45);
+}
+.pot[data-tone="black"] {
+  border-color: rgba(240, 210, 120, 0.55);
+}
+
+.seat__badges {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.seat__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #1a1208;
+  background: #e8c35a;
+}
+
+.seat__badge--sb {
+  background: #90caf9;
+}
+
+.seat__badge--bb {
+  background: #ef9a9a;
+}
+
 .board__cards,
 .seat__cards {
   display: flex;
