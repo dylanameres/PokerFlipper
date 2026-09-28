@@ -262,6 +262,7 @@ function normalizeOnlineView(view: RoomView): RoomView {
     handOver: Boolean(view.handOver),
     winnerSeats: Array.isArray(view.winnerSeats) ? view.winnerSeats : [],
     actionSeat: view.actionSeat ?? null,
+    history: Array.isArray(view.history) ? view.history.map(String) : [],
   };
 }
 
@@ -738,6 +739,35 @@ function renderBettingBar(online: RoomView): string {
   `;
 }
 
+function personalizeHistoryLine(line: string, yourSeat: number | null): string {
+  if (yourSeat === null) return line;
+  const yours = `P${yourSeat + 1}`;
+  const opp = `P${(1 - yourSeat) + 1}`; // seats 0/1 → P1/P2
+  return line.split(yours).join("You").split(opp).join("Opp");
+}
+
+function renderHistorySidebar(online: RoomView): string {
+  const lines = online.history ?? [];
+  const body =
+    lines.length === 0
+      ? `<p class="history__empty">Hand actions show up here.</p>`
+      : `<ol class="history__list">${lines
+          .map((line) => {
+            const text = personalizeHistoryLine(line, online.yourSeat);
+            const street = /^(Hand #|Flop |Turn |River |Chop)/.test(line);
+            return `<li class="history__line${street ? " history__line--street" : ""}">${text}</li>`;
+          })
+          .join("")}</ol>`;
+  return `
+    <aside class="history-sidebar" aria-label="Hand history">
+      <div class="history__head">
+        <h2>Hand history</h2>
+      </div>
+      ${body}
+    </aside>
+  `;
+}
+
 function canShowOuts(): boolean {
   return state.street === "flop" || state.street === "turn";
 }
@@ -996,9 +1026,21 @@ function renderTable(): string {
     })
     .join("");
 
-  const canFlop = state.street === "holes" && hostCanDeal && streetReady;
-  const canTurn = state.street === "flop" && hostCanDeal && streetReady;
-  const canRiver = state.street === "turn" && hostCanDeal && streetReady;
+  const canFlop =
+    state.mode === "solo" &&
+    state.street === "holes" &&
+    hostCanDeal &&
+    streetReady;
+  const canTurn =
+    state.mode === "solo" &&
+    state.street === "flop" &&
+    hostCanDeal &&
+    streetReady;
+  const canRiver =
+    state.mode === "solo" &&
+    state.street === "turn" &&
+    hostCanDeal &&
+    streetReady;
   const canDealHands =
     hostCanDeal &&
     (state.mode === "solo"
@@ -1010,8 +1052,10 @@ function renderTable(): string {
               online.handOver ||
               !state.onlineSupportsBetting),
         ));
-  const sidebarOpen =
+  const outsSidebarOpen =
     showEquityUi && state.outsSeat !== null && canShowOuts();
+  const historySidebarOpen = state.mode === "online";
+  const sidebarsOpen = outsSidebarOpen || historySidebarOpen;
 
   const roomCode = state.roomCode || online?.roomId || "";
   const meta =
@@ -1026,7 +1070,10 @@ function renderTable(): string {
       : `${gameLabel(state.gameType)} · ${state.playerCount} players · ${holes} hole cards`;
 
   return `
-    <main class="page page--table${sidebarOpen ? " page--table-sidebar" : ""}">
+    <main class="page page--table${sidebarsOpen ? " page--table-sidebar" : ""}${
+      historySidebarOpen ? " page--table-history" : ""
+    }">
+      ${historySidebarOpen && online ? renderHistorySidebar(online) : historySidebarOpen ? `<aside class="history-sidebar" aria-label="Hand history"><div class="history__head"><h2>Hand history</h2></div><p class="history__empty">Connecting…</p></aside>` : ""}
       <div class="table-shell">
         <header class="table-bar">
           <div>
@@ -1097,9 +1144,11 @@ function renderTable(): string {
           }>
             ${state.handsDealtCount >= 1 ? "Redeal" : "Deal hands"}
           </button>
-          <button type="button" class="btn" id="btn-deal-flop" ${
-            canFlop ? "" : "disabled"
-          }>
+          ${
+            state.mode === "solo"
+              ? `<button type="button" class="btn" id="btn-deal-flop" ${
+                  canFlop ? "" : "disabled"
+                }>
             Deal flop
           </button>
           <button type="button" class="btn" id="btn-deal-turn" ${
@@ -1111,13 +1160,15 @@ function renderTable(): string {
             canRiver ? "" : "disabled"
           }>
             Deal river
-          </button>
+          </button>`
+              : `<p class="actions__note">Board deals automatically after each betting round.</p>`
+          }
         </div>
         <p class="hint">${
           online ? online.status : hintForStreet(state.street)
         }</p>
       </div>
-      ${sidebarOpen ? renderOutsSidebar(state.outsSeat!) : ""}
+      ${outsSidebarOpen ? renderOutsSidebar(state.outsSeat!) : ""}
       ${state.picking ? renderCardPicker() : ""}
     </main>
   `;
@@ -1200,6 +1251,10 @@ function render() {
         requestAnimationFrame(() => runDealAnimations(incoming));
       });
     }
+    const historyList = document.querySelector(".history__list");
+    if (historyList) historyList.scrollTop = historyList.scrollHeight;
+    const historyAside = document.querySelector(".history-sidebar");
+    if (historyAside) historyAside.scrollTop = historyAside.scrollHeight;
   } else {
     resetDealAnimationState();
   }
