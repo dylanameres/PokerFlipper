@@ -109,12 +109,19 @@ export class PokerRoom extends Server<Env> {
     }
   }
 
-  private smallBlindSeat(): number {
-    return this.buttonSeat;
+  /** One seat to the left (same direction blinds rotate). */
+  private seatLeftOf(seat: number): number {
+    return (seat - 1 + MAX_ONLINE_PLAYERS) % MAX_ONLINE_PLAYERS;
   }
 
+  /** SB is always left of the dealer — never the button itself. */
+  private smallBlindSeat(): number {
+    return this.seatLeftOf(this.buttonSeat);
+  }
+
+  /** BB is always left of the SB. */
   private bigBlindSeat(): number {
-    return 1 - this.buttonSeat;
+    return this.seatLeftOf(this.smallBlindSeat());
   }
 
   private postBlinds() {
@@ -153,7 +160,20 @@ export class PokerRoom extends Server<Env> {
     return n;
   }
 
-  /** Preflop after blinds: SB (button) acts first in heads-up. */
+  /** First active seat at or left of `from` (walking left). */
+  private firstActiveLeftOf(from: number): number | null {
+    for (let step = 1; step <= MAX_ONLINE_PLAYERS; step++) {
+      const seat =
+        (from - step + MAX_ONLINE_PLAYERS) % MAX_ONLINE_PLAYERS;
+      if (this.activeSeats().includes(seat) && this.seats[seat].chips > 0) {
+        return seat;
+      }
+    }
+    const active = this.activeSeats();
+    return active[0] ?? null;
+  }
+
+  /** Preflop: first to act is left of the big blind. */
   private startPreflopBetting() {
     for (const seat of this.seats) {
       seat.acted = false;
@@ -164,7 +184,6 @@ export class PokerRoom extends Server<Env> {
       this.actionSeat = null;
       return;
     }
-    // If someone is already all-in from blinds, still let the other act if needed.
     const bothAllIn = active.every((i) => this.seats[i].chips === 0);
     if (bothAllIn) {
       this.bettingOpen = false;
@@ -172,17 +191,13 @@ export class PokerRoom extends Server<Env> {
       return;
     }
     this.bettingOpen = true;
-    this.actionSeat = this.smallBlindSeat();
-    if (!active.includes(this.actionSeat) || this.seats[this.actionSeat].chips === 0) {
-      this.actionSeat = this.bigBlindSeat();
-    }
-    if (!active.includes(this.actionSeat)) {
+    this.actionSeat = this.firstActiveLeftOf(this.bigBlindSeat());
+    if (this.actionSeat === null) {
       this.bettingOpen = false;
-      this.actionSeat = null;
     }
   }
 
-  /** Postflop: BB acts first in heads-up; button acts last. */
+  /** Postflop: first to act is left of the button. */
   private startBettingRound() {
     this.currentBet = 0;
     for (const seat of this.seats) {
@@ -199,8 +214,10 @@ export class PokerRoom extends Server<Env> {
       return;
     }
     this.bettingOpen = true;
-    const bb = this.bigBlindSeat();
-    this.actionSeat = active.includes(bb) ? bb : active[0];
+    this.actionSeat = this.firstActiveLeftOf(this.buttonSeat);
+    if (this.actionSeat === null) {
+      this.bettingOpen = false;
+    }
   }
 
   private bettingRoundComplete(): boolean {

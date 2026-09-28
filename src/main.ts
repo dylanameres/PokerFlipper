@@ -813,13 +813,13 @@ function renderTable(): string {
       const roleBadges = seatInfo
         ? [
             seatInfo.isButton
-              ? `<span class="seat__btn-puck" title="Dealer button" aria-label="Dealer">D</span>`
+              ? `<span class="seat__marker seat__marker--d" title="Dealer button" aria-label="Dealer">D</span>`
               : "",
             seatInfo.isSmallBlind
-              ? `<span class="seat__blind seat__blind--sb" title="Small blind">SB</span>`
+              ? `<span class="seat__marker seat__marker--sb" title="Small blind">SB</span>`
               : "",
             seatInfo.isBigBlind
-              ? `<span class="seat__blind seat__blind--bb" title="Big blind">BB</span>`
+              ? `<span class="seat__marker seat__marker--bb" title="Big blind">BB</span>`
               : "",
           ]
             .filter(Boolean)

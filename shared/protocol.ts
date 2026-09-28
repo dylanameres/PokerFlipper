@@ -13,7 +13,7 @@ export const BIG_BLIND = 50;
 export const MIN_BET = BIG_BLIND;
 
 /** Bump when the room server wire format changes in a breaking/feature way. */
-export const ROOM_PROTOCOL = 2;
+export const ROOM_PROTOCOL = 3;
 
 export type ClientMessage =
   | { type: "hello"; gameType: GameType }
