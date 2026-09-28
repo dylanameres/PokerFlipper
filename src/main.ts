@@ -11,9 +11,6 @@ import {
   randomRoomCode,
   sendOnline,
 } from "./online";
-
-/** Protocol version that first shipped blinds; older deploys show a warning. */
-const MIN_BLINDS_PROTOCOL = 2;
 import {
   cardToString,
   draw,
@@ -300,16 +297,15 @@ function renderPotDisplay(pot: number): string {
 function applyOnlineView(view: RoomView) {
   const prev = state.online;
   const normalized = normalizeOnlineView(view);
-  // Count a new deal when we enter holes after lobby / hand-over (or first fill).
+  // Count a new deal when hole cards appear for a fresh hand.
+  // Includes redeals that stay on street "holes" after a fold/showdown.
   const dealtHoles =
     normalized.street === "holes" &&
     normalized.yourHoles.some((c) => c !== null);
-  const wasBetweenHands =
-    !prev ||
-    prev.street === "predeal" ||
-    prev.handOver ||
-    prev.street === "river";
-  if (dealtHoles && wasBetweenHands && prev?.street !== "holes") {
+  const startingNewHand =
+    dealtHoles &&
+    (!prev || prev.street !== "holes" || prev.handOver);
+  if (startingNewHand) {
     state.handsDealtCount += 1;
     // Same seat slots as the prior hand — clear so redeal fly-ins run again.
     resetDealAnimationState();
@@ -1054,9 +1050,9 @@ function renderTable(): string {
                 : ""
             }
             ${
-              online &&
-              (typeof online.protocol !== "number" ||
-                online.protocol < MIN_BLINDS_PROTOCOL)
+              // Warn only when the live room truly lacks chip/blinds fields —
+              // never from a client↔server protocol number mismatch.
+              online && !state.onlineSupportsBetting
                 ? `<p class="error">Room server is outdated (no blinds). On your Mac run: <code>git pull && npm install && npm run deploy:party</code></p>`
                 : ""
             }
