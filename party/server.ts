@@ -75,6 +75,10 @@ export class PokerRoom extends Server<Env> {
   private seatsReady = false;
   /** Current-hand action lines for the history panel. */
   private history: string[] = [];
+  /** Bumped to cancel an in-flight all-in runout. */
+  private runoutGen = 0;
+  /** Pause between runout streets (turn / river). */
+  private static readonly RUNOUT_PAUSE_MS = 900;
 
   private holes(): number {
     return HOLE_COUNT[this.gameType];
@@ -194,17 +198,31 @@ export class PokerRoom extends Server<Env> {
     return n;
   }
 
-  /** First active seat at or left of `from` (walking left). */
+  /** Active seats that still have chips and can take a betting action. */
+  private seatsThatCanBet(): number[] {
+    return this.activeSeats().filter((i) => this.seats[i].chips > 0);
+  }
+
+  /** First seat that can bet, walking left from `from` (exclusive). */
   private firstActiveLeftOf(from: number): number | null {
     for (let step = 1; step <= MAX_ONLINE_PLAYERS; step++) {
       const seat =
         (from - step + MAX_ONLINE_PLAYERS) % MAX_ONLINE_PLAYERS;
-      if (this.activeSeats().includes(seat) && this.seats[seat].chips > 0) {
+      if (this.seatsThatCanBet().includes(seat)) {
         return seat;
       }
     }
-    const active = this.activeSeats();
-    return active[0] ?? null;
+    return null;
+  }
+
+  private markAllInSeatsActed() {
+    for (const i of this.activeSeats()) {
+      if (this.seats[i].chips === 0) this.seats[i].acted = true;
+    }
+  }
+
+  private pause(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /** Preflop: first to act is left of the big blind. */
@@ -213,17 +231,10 @@ export class PokerRoom extends Server<Env> {
       seat.acted = false;
     }
     // Short all-in from blinds still counts as having acted for round completion.
-    for (const i of this.activeSeats()) {
-      if (this.seats[i].chips === 0) this.seats[i].acted = true;
-    }
+    this.markAllInSeatsActed();
     const active = this.activeSeats();
-    if (active.length < 2) {
-      this.bettingOpen = false;
-      this.actionSeat = null;
-      return;
-    }
-    const bothAllIn = active.every((i) => this.seats[i].chips === 0);
-    if (bothAllIn) {
+    // HU (or any): if fewer than 2 players can still bet, skip to runout.
+    if (active.length < 2 || this.seatsThatCanBet().length < 2) {
       this.bettingOpen = false;
       this.actionSeat = null;
       return;
@@ -243,16 +254,12 @@ export class PokerRoom extends Server<Env> {
       seat.acted = false;
     }
     // All-in players cannot act — mark them acted so the round can complete.
-    for (const i of this.activeSeats()) {
-      if (this.seats[i].chips === 0) this.seats[i].acted = true;
-    }
+    this.markAllInSeatsActed();
     const active = this.activeSeats();
-    if (active.length < 2 || active.every((i) => this.seats[i].chips === 0)) {
+    // One (or both) all-in in HU → no more betting; caller runs out the board.
+    if (active.length < 2 || this.seatsThatCanBet().length < 2) {
       this.bettingOpen = false;
       this.actionSeat = null;
-      if (this.street === "river") {
-        this.showdown();
-      }
       return;
     }
     this.bettingOpen = true;
@@ -267,41 +274,80 @@ export class PokerRoom extends Server<Env> {
     if (active.length <= 1) return true;
     for (const i of active) {
       const s = this.seats[i];
+      // All-in players never need another action.
+      if (s.chips === 0) continue;
       if (!s.acted) return false;
-      const matched = s.betStreet === this.currentBet;
-      const allInShort = s.chips === 0 && s.betStreet <= this.currentBet;
-      if (!matched && !allInShort) return false;
+      if (s.betStreet !== this.currentBet) return false;
     }
     return true;
   }
 
-  private afterAction() {
+  /**
+   * @returns true if the caller should broadcast (action advanced / fold).
+   * false if a runout was started (it broadcasts on its own).
+   */
+  private afterAction(): boolean {
     if (this.activeSeats().length <= 1) {
       this.finishByFold();
-      return;
+      return true;
     }
     if (!this.bettingRoundComplete()) {
       this.advanceAction();
-      return;
+      // Only auto-close if nobody who can bet still needs to respond.
+      // (A lone player facing an all-in must still call/fold.)
+      if (this.actionSeat === null) {
+        this.bettingOpen = false;
+        void this.finishBettingAndMaybeRunout();
+        return false;
+      }
+      return true;
     }
     this.bettingOpen = false;
     this.actionSeat = null;
-    this.onBettingComplete();
+    void this.finishBettingAndMaybeRunout();
+    return false;
   }
 
-  /** After a betting round ends, showdown or auto-deal the next board street. */
-  private onBettingComplete() {
+  /** After a betting round ends, showdown or auto-deal remaining streets. */
+  private async finishBettingAndMaybeRunout() {
+    const gen = ++this.runoutGen;
     if (this.street === "river") {
       this.showdown();
+      this.broadcastViews();
       return;
     }
+
+    // Deal the next street immediately (flop after preflop, etc.).
     this.dealNextBoardStreet();
-    // All-in runout: keep dealing until river/showdown.
-    while (!this.bettingOpen && !this.handOver && this.street !== "river") {
+    this.broadcastViews();
+
+    // All-in runout: pause before turn and river, then deal.
+    while (
+      gen === this.runoutGen &&
+      !this.bettingOpen &&
+      !this.handOver &&
+      this.street !== "river"
+    ) {
+      // Hesitation only before turn / river (street is currently flop or turn).
+      if (this.street === "flop" || this.street === "turn") {
+        await this.pause(PokerRoom.RUNOUT_PAUSE_MS);
+        if (gen !== this.runoutGen || this.handOver || this.bettingOpen) {
+          if (gen === this.runoutGen) this.broadcastViews();
+          return;
+        }
+      }
       this.dealNextBoardStreet();
+      this.broadcastViews();
     }
-    if (!this.bettingOpen && !this.handOver && this.street === "river") {
+
+    if (
+      gen === this.runoutGen &&
+      !this.bettingOpen &&
+      !this.handOver &&
+      this.street === "river"
+    ) {
       this.showdown();
+      this.broadcastViews();
     }
   }
 
@@ -333,15 +379,15 @@ export class PokerRoom extends Server<Env> {
   }
 
   private advanceAction() {
-    const active = this.activeSeats();
-    if (active.length === 0 || this.actionSeat === null) {
+    const canBet = this.seatsThatCanBet();
+    if (canBet.length === 0 || this.actionSeat === null) {
       this.actionSeat = null;
       return;
     }
     const start = this.actionSeat;
     for (let step = 1; step <= MAX_ONLINE_PLAYERS; step++) {
       const next = (start + step) % MAX_ONLINE_PLAYERS;
-      if (!active.includes(next)) continue;
+      if (!canBet.includes(next)) continue;
       const s = this.seats[next];
       const needsAction =
         !s.acted || (s.betStreet < this.currentBet && s.chips > 0);
@@ -417,6 +463,7 @@ export class PokerRoom extends Server<Env> {
     const seat = this.seatIndexOf(sender.id);
     if (seat < 0) throw new Error("You are not seated");
     if (this.seats[seat].folded) throw new Error("You already folded");
+    if (this.seats[seat].chips === 0) throw new Error("You are all-in");
     if (seat !== this.actionSeat) throw new Error("Not your turn");
     return seat;
   }
@@ -515,6 +562,7 @@ export class PokerRoom extends Server<Env> {
         this.handOver = false;
         this.winnerSeats = [];
         this.history = [];
+        this.runoutGen += 1; // cancel any prior runout
         const n = this.holes();
         for (const seat of this.seats) {
           seat.holes = emptyHoles(n);
@@ -535,7 +583,8 @@ export class PokerRoom extends Server<Env> {
         this.postBlinds();
         this.startPreflopBetting();
         if (!this.bettingOpen && !this.handOver) {
-          this.onBettingComplete();
+          void this.finishBettingAndMaybeRunout();
+          return;
         }
         this.broadcastViews();
         return;
@@ -562,12 +611,12 @@ export class PokerRoom extends Server<Env> {
         if (this.bettingOpen || !this.bettingRoundComplete()) {
           throw new Error("Finish betting first");
         }
-        this.onBettingComplete();
-        this.broadcastViews();
+        void this.finishBettingAndMaybeRunout();
         return;
       }
       case "new_round": {
         if (!isHost) throw new Error("Only the host can start a new round");
+        this.runoutGen += 1;
         this.newRoundKeepSeats();
         this.broadcastViews();
         return;
@@ -577,8 +626,7 @@ export class PokerRoom extends Server<Env> {
         this.seats[seat].folded = true;
         this.seats[seat].acted = true;
         this.pushHistory(`${this.seatLabel(seat)} folds`);
-        this.afterAction();
-        this.broadcastViews();
+        if (this.afterAction()) this.broadcastViews();
         return;
       }
       case "call": {
@@ -587,13 +635,17 @@ export class PokerRoom extends Server<Env> {
         const toCall = Math.max(0, this.currentBet - s.betStreet);
         if (toCall > 0) {
           this.putChips(s, toCall);
-          this.pushHistory(`${this.seatLabel(seat)} calls ${toCall}`);
+          const allIn = s.chips === 0;
+          this.pushHistory(
+            allIn
+              ? `${this.seatLabel(seat)} calls ${toCall} (all-in)`
+              : `${this.seatLabel(seat)} calls ${toCall}`,
+          );
         } else {
           this.pushHistory(`${this.seatLabel(seat)} checks`);
         }
         s.acted = true;
-        this.afterAction();
-        this.broadcastViews();
+        if (this.afterAction()) this.broadcastViews();
         return;
       }
       case "bet": {
@@ -623,18 +675,23 @@ export class PokerRoom extends Server<Env> {
         this.putChips(s, add);
         this.currentBet = s.betStreet;
         s.acted = true;
+        const allIn = s.chips === 0;
+        const verb = wasBet ? "bets" : "raises to";
         this.pushHistory(
-          wasBet
-            ? `${this.seatLabel(seat)} bets ${amount}`
-            : `${this.seatLabel(seat)} raises to ${amount}`,
+          allIn
+            ? `${this.seatLabel(seat)} ${verb} ${amount} (all-in)`
+            : `${this.seatLabel(seat)} ${verb} ${amount}`,
         );
-        // Everyone else still in must respond.
+        // Others still in must respond — but all-in seats never need to act again.
         for (let i = 0; i < this.seats.length; i++) {
           if (i === seat || this.seats[i].folded) continue;
+          if (this.seats[i].chips === 0) {
+            this.seats[i].acted = true;
+            continue;
+          }
           this.seats[i].acted = false;
         }
-        this.afterAction();
-        this.broadcastViews();
+        if (this.afterAction()) this.broadcastViews();
         return;
       }
       default:
@@ -692,12 +749,17 @@ export class PokerRoom extends Server<Env> {
       this.bettingOpen &&
       yourSeat >= 0 &&
       yourSeat === this.actionSeat &&
-      !this.handOver;
+      !this.handOver &&
+      (your?.chips ?? 0) > 0;
+    // True only when a normal betting round finished and someone still has
+    // chips to bet next street — not during an all-in runout.
     const bettingComplete =
       !this.bettingOpen &&
       !this.handOver &&
       this.street !== "predeal" &&
-      this.bettingRoundComplete();
+      this.street !== "river" &&
+      this.bettingRoundComplete() &&
+      this.seatsThatCanBet().length >= 2;
 
     let roomId = "";
     try {
@@ -733,6 +795,13 @@ export class PokerRoom extends Server<Env> {
             ? `Your turn — ${toCall} to call.`
             : "Your turn — check or bet."
           : `Waiting for P${this.actionSeat + 1}…`;
+    } else if (
+      !this.bettingOpen &&
+      !this.handOver &&
+      this.seatsThatCanBet().length < 2 &&
+      this.street !== "predeal"
+    ) {
+      status = "All-in — running out the board…";
     } else if (bettingComplete) {
       status = "Dealing next street…";
     } else {
