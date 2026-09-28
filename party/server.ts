@@ -642,15 +642,6 @@ export class PokerRoom extends Server<Env> {
     }
   }
 
-  private requireHostDeal(isHost: boolean, expected: Street) {
-    if (!isHost) throw new Error("Only the host can deal");
-    if (this.handOver) throw new Error("Hand is over — deal hands for a new one");
-    if (this.street !== expected) throw new Error("Wrong street");
-    if (this.bettingOpen || !this.bettingRoundComplete()) {
-      throw new Error("Finish betting first");
-    }
-  }
-
   private bothSeated(): boolean {
     return this.seats.every((s) => s.connectionId !== null);
   }
