@@ -1,4 +1,4 @@
-import { ROOM_PROTOCOL, type RoomView } from "../shared/protocol";
+import type { RoomView } from "../shared/protocol";
 import {
   newDealKeys,
   rememberDealKeys,
@@ -11,6 +11,9 @@ import {
   randomRoomCode,
   sendOnline,
 } from "./online";
+
+/** Protocol version that first shipped blinds; older deploys show a warning. */
+const MIN_BLINDS_PROTOCOL = 2;
 import {
   cardToString,
   draw,
@@ -1053,7 +1056,7 @@ function renderTable(): string {
             ${
               online &&
               (typeof online.protocol !== "number" ||
-                online.protocol < ROOM_PROTOCOL)
+                online.protocol < MIN_BLINDS_PROTOCOL)
                 ? `<p class="error">Room server is outdated (no blinds). On your Mac run: <code>git pull && npm install && npm run deploy:party</code></p>`
                 : ""
             }
