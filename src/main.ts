@@ -566,6 +566,12 @@ function seatStyle(index: number, total: number): string {
   return `left:${left.toFixed(2)}%;top:${top.toFixed(2)}%`;
 }
 
+/** Online: always put hero on the bottom rail and villain on top. */
+function onlineLayoutIndex(seat: number, yourSeat: number | null): number {
+  if (yourSeat === null) return seat;
+  return seat === yourSeat ? 0 : 1;
+}
+
 function leadingEquity(): number {
   if (!state.equities?.length) return 0;
   return Math.max(...state.equities);
@@ -820,8 +826,13 @@ function renderTable(): string {
             }${folded ? " · folded" : ""}</div>`
           : "";
 
+      const layoutIndex =
+        online && online.yourSeat !== null
+          ? onlineLayoutIndex(i, online.yourSeat)
+          : i;
+
       return `
-        <div class="${seatClass}" style="${seatStyle(i, state.playerCount)}" data-seat="${i}">
+        <div class="${seatClass}" style="${seatStyle(layoutIndex, state.playerCount)}" data-seat="${i}">
           ${winner ? `<div class="seat__winner">Winner</div>` : ""}
           ${roleBadges ? `<div class="seat__badges">${roleBadges}</div>` : ""}
           <div class="seat__cards">
