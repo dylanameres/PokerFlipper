@@ -78,7 +78,7 @@ export interface RoomView {
   /** Empty when no winner yet; one seat on win; both on chop. */
   winnerSeats: number[];
   actionSeat: number | null;
-  /** Current-hand action log (newest last). */
+  /** Completed-hand summaries (newest last): winner, pot, hole cards. */
   history: string[];
 }
 

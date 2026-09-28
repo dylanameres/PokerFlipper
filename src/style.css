@@ -316,12 +316,13 @@ legend {
   line-height: 1.35;
 }
 
-.history__line--street {
+.history__line--result {
   background: transparent;
   border-color: var(--border);
-  color: var(--accent);
+  color: var(--ink);
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
+  line-height: 1.45;
 }
 
 .actions__note {

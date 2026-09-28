@@ -827,12 +827,12 @@ function renderHistorySidebar(online: RoomView): string {
   const lines = online.history ?? [];
   const body =
     lines.length === 0
-      ? `<p class="history__empty">Hand actions show up here.</p>`
+      ? `<p class="history__empty">Finished hands show up here.</p>`
       : `<ol class="history__list">${lines
           .map((line) => {
             const text = personalizeHistoryLine(line, online.yourSeat);
-            const street = /^(Hand #|Flop |Turn |River |Chop)/.test(line);
-            return `<li class="history__line${street ? " history__line--street" : ""}">${text}</li>`;
+            const win = /\bwins\b|\bChop\b/.test(line);
+            return `<li class="history__line${win ? " history__line--result" : ""}">${text}</li>`;
           })
           .join("")}</ol>`;
   return `
