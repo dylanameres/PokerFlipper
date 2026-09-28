@@ -53,6 +53,8 @@ interface AppState {
   showEquity: boolean;
   /** Larger card faces on the table. */
   largeCards: boolean;
+  /** Face-down card back design. */
+  cardBack: CardBackId;
   /** Online multiplayer view from room server (null in solo). */
   online: RoomView | null;
   /** False when connected to a room server that predates chip betting. */
@@ -64,10 +66,26 @@ interface AppState {
 
 const SETTINGS_KEY = "pokerflipper-settings";
 
+type CardBackId = "blue" | "red" | "arcane" | "rainbow";
+
+const CARD_BACKS: { id: CardBackId; label: string; detail: string }[] = [
+  { id: "blue", label: "Ocean", detail: "Classic blue" },
+  { id: "red", label: "Crimson", detail: "Deep red" },
+  { id: "arcane", label: "Arcane", detail: "Purple magic" },
+  { id: "rainbow", label: "Prism", detail: "Rainbow shine" },
+];
+
+function isCardBackId(v: unknown): v is CardBackId {
+  return (
+    v === "blue" || v === "red" || v === "arcane" || v === "rainbow"
+  );
+}
+
 interface SavedSettings {
   fourColorDeck: boolean;
   showEquity: boolean;
   largeCards: boolean;
+  cardBack: CardBackId;
 }
 
 function loadSettings(): SavedSettings {
@@ -75,6 +93,7 @@ function loadSettings(): SavedSettings {
     fourColorDeck: false,
     showEquity: true,
     largeCards: false,
+    cardBack: "blue",
   };
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
@@ -84,6 +103,7 @@ function loadSettings(): SavedSettings {
       fourColorDeck: Boolean(parsed.fourColorDeck),
       showEquity: parsed.showEquity !== false,
       largeCards: Boolean(parsed.largeCards),
+      cardBack: isCardBackId(parsed.cardBack) ? parsed.cardBack : "blue",
     };
   } catch {
     return defaults;
@@ -98,6 +118,7 @@ function saveSettings() {
         fourColorDeck: state.fourColorDeck,
         showEquity: state.showEquity,
         largeCards: state.largeCards,
+        cardBack: state.cardBack,
       } satisfies SavedSettings),
     );
   } catch {
@@ -124,6 +145,7 @@ const state: AppState = {
   fourColorDeck: saved.fourColorDeck,
   showEquity: saved.showEquity,
   largeCards: saved.largeCards,
+  cardBack: saved.cardBack,
   online: null,
   onlineSupportsBetting: true,
   roomCode: "",
@@ -498,6 +520,32 @@ function settingsSwitchRow(
   `;
 }
 
+function renderCardBackPicker(): string {
+  const options = CARD_BACKS.map((back) => {
+    const selected = state.cardBack === back.id;
+    return `
+      <button
+        type="button"
+        class="card-back-option${selected ? " card-back-option--selected" : ""}"
+        data-card-back="${back.id}"
+        aria-pressed="${selected}"
+      >
+        <span class="card card--back card--sm card-back-option__preview" aria-hidden="true"></span>
+        <span class="card-back-option__copy">
+          <strong>${back.label}</strong>
+          <small>${back.detail}</small>
+        </span>
+      </button>
+    `;
+  }).join("");
+  return `
+    <div class="settings__section">
+      <div class="settings__section-label">Card back</div>
+      <div class="card-back-picker">${options}</div>
+    </div>
+  `;
+}
+
 function renderSettingsPanel(): string {
   if (!state.settingsOpen) return "";
   return `
@@ -526,6 +574,7 @@ function renderSettingsPanel(): string {
             "Bigger card faces on the table",
             state.largeCards,
           )}
+          ${renderCardBackPicker()}
         </div>
       </div>
     </div>
@@ -1111,6 +1160,7 @@ function hintForStreet(street: Street): string {
 
 function render() {
   document.documentElement.classList.toggle("large-cards", state.largeCards);
+  document.documentElement.dataset.cardBack = state.cardBack;
   const dealKeys =
     state.screen === "table" ? currentDealKeys() : ([] as string[]);
   const incoming = state.screen === "table" ? newDealKeys(dealKeys) : [];
@@ -1163,6 +1213,17 @@ function bindSettingsEvents() {
         | "showEquity"
         | "largeCards";
       toggleSetting(key);
+    });
+  });
+  document.querySelectorAll<HTMLButtonElement>("[data-card-back]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = btn.dataset.cardBack;
+      if (!isCardBackId(id) || id === state.cardBack) return;
+      state.cardBack = id;
+      saveSettings();
+      render();
     });
   });
 }

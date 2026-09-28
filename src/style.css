@@ -345,6 +345,148 @@ legend {
   font-size: 0.95rem;
 }
 
+.settings__section {
+  padding-top: 4px;
+}
+
+.settings__section-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 4px 2px 10px;
+}
+
+.card-back-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.card-back-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.2);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  transition: border-color 0.12s ease, background 0.12s ease, transform 0.08s ease;
+}
+
+.card-back-option:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  transform: translateY(-1px);
+}
+
+.card-back-option--selected {
+  border-color: var(--accent);
+  background: rgba(255, 209, 102, 0.1);
+  box-shadow: 0 0 0 1px rgba(255, 209, 102, 0.25);
+}
+
+.card-back-option__preview {
+  flex-shrink: 0;
+  /* Preview should reflect the option, not the currently selected global back. */
+  background: none;
+}
+
+.card-back-option[data-card-back="blue"] .card-back-option__preview {
+  background:
+    repeating-linear-gradient(
+      45deg,
+      #1a3a6e,
+      #1a3a6e 5px,
+      #24508f 5px,
+      #24508f 10px
+    );
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.card-back-option[data-card-back="red"] .card-back-option__preview {
+  background:
+    repeating-linear-gradient(
+      45deg,
+      #6e1a24,
+      #6e1a24 5px,
+      #9a2434 5px,
+      #9a2434 10px
+    );
+  border: 1px solid rgba(255, 200, 200, 0.2);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.card-back-option[data-card-back="arcane"] .card-back-option__preview {
+  background:
+    radial-gradient(circle at 30% 25%, rgba(220, 180, 255, 0.55) 0%, transparent 42%),
+    radial-gradient(circle at 70% 75%, rgba(120, 80, 255, 0.45) 0%, transparent 40%),
+    repeating-linear-gradient(
+      135deg,
+      #2a1450,
+      #2a1450 4px,
+      #3d1f73 4px,
+      #3d1f73 8px
+    );
+  border: 1px solid rgba(210, 170, 255, 0.35);
+  box-shadow:
+    0 0 10px rgba(140, 80, 255, 0.35),
+    0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.card-back-option[data-card-back="rainbow"] .card-back-option__preview {
+  background:
+    linear-gradient(
+      135deg,
+      #ff4d6d 0%,
+      #ff9f1c 20%,
+      #ffd166 40%,
+      #06d6a0 60%,
+      #4cc9f0 80%,
+      #b5179e 100%
+    );
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow:
+    0 0 12px rgba(255, 180, 80, 0.35),
+    0 2px 6px rgba(0, 0, 0, 0.35);
+  position: relative;
+  overflow: hidden;
+}
+
+.card-back-option[data-card-back="rainbow"] .card-back-option__preview::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    120deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.55) 48%,
+    transparent 62%
+  );
+  mix-blend-mode: soft-light;
+}
+
+.card-back-option__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.card-back-option__copy strong {
+  font-size: 0.9rem;
+}
+
+.card-back-option__copy small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
 .settings__row small {
   display: block;
   margin-top: 4px;
@@ -952,6 +1094,11 @@ html.large-cards .picker__card {
 }
 
 .card--back {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  position: relative;
+  overflow: hidden;
+  /* Default / Ocean blue */
   background:
     repeating-linear-gradient(
       45deg,
@@ -960,8 +1107,95 @@ html.large-cards .picker__card {
       #24508f 6px,
       #24508f 12px
     );
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+html[data-card-back="red"] .card--back:not(.card-back-option__preview) {
+  background:
+    repeating-linear-gradient(
+      45deg,
+      #6e1a24,
+      #6e1a24 6px,
+      #9a2434 6px,
+      #9a2434 12px
+    );
+  border-color: rgba(255, 200, 200, 0.22);
+}
+
+html[data-card-back="arcane"] .card--back:not(.card-back-option__preview) {
+  background:
+    radial-gradient(circle at 30% 25%, rgba(220, 180, 255, 0.55) 0%, transparent 42%),
+    radial-gradient(circle at 70% 75%, rgba(120, 80, 255, 0.5) 0%, transparent 40%),
+    repeating-linear-gradient(
+      135deg,
+      #2a1450,
+      #2a1450 5px,
+      #3d1f73 5px,
+      #3d1f73 10px
+    );
+  border-color: rgba(210, 170, 255, 0.4);
+  box-shadow:
+    0 0 12px rgba(140, 80, 255, 0.4),
+    0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+html[data-card-back="arcane"] .card--back:not(.card-back-option__preview)::before {
+  content: "";
+  position: absolute;
+  inset: 18%;
+  border: 1px solid rgba(230, 200, 255, 0.35);
+  border-radius: 3px;
+  box-shadow: inset 0 0 8px rgba(180, 120, 255, 0.35);
+  pointer-events: none;
+}
+
+html[data-card-back="rainbow"] .card--back:not(.card-back-option__preview) {
+  background:
+    linear-gradient(
+      135deg,
+      #ff4d6d 0%,
+      #ff9f1c 18%,
+      #ffd166 36%,
+      #06d6a0 54%,
+      #4cc9f0 72%,
+      #b5179e 100%
+    );
+  border-color: rgba(255, 255, 255, 0.45);
+  box-shadow:
+    0 0 14px rgba(255, 180, 80, 0.4),
+    0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+html[data-card-back="rainbow"] .card--back:not(.card-back-option__preview)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 25%,
+    rgba(255, 255, 255, 0.55) 48%,
+    transparent 65%
+  );
+  background-size: 220% 100%;
+  animation: prism-shine 2.8s ease-in-out infinite;
+  mix-blend-mode: soft-light;
+  pointer-events: none;
+}
+
+@keyframes prism-shine {
+  0%,
+  100% {
+    background-position: 100% 0;
+  }
+  50% {
+    background-position: 0% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-card-back="rainbow"] .card--back:not(.card-back-option__preview)::after {
+    animation: none;
+    background-position: 40% 0;
+  }
 }
 
 .card--pickable {
