@@ -62,6 +62,8 @@ interface AppState {
   roomCode: string;
   joinCode: string;
   onlineError: string | null;
+  /** How many times hole cards have been dealt this table session. */
+  handsDealtCount: number;
 }
 
 const SETTINGS_KEY = "pokerflipper-settings";
@@ -151,6 +153,7 @@ const state: AppState = {
   roomCode: "",
   joinCode: "",
   onlineError: null,
+  handsDealtCount: 0,
 };
 
 function emptyBoard(): (Card | null)[] {
@@ -221,6 +224,7 @@ function startSoloTable() {
   state.mode = "solo";
   state.online = null;
   state.onlineError = null;
+  state.handsDealtCount = 0;
   resetTable();
   state.screen = "table";
   render();
@@ -291,8 +295,23 @@ function renderPotDisplay(pot: number): string {
 }
 
 function applyOnlineView(view: RoomView) {
+  const prev = state.online;
+  const normalized = normalizeOnlineView(view);
+  // Count a new deal when we enter holes after lobby / hand-over (or first fill).
+  const dealtHoles =
+    normalized.street === "holes" &&
+    normalized.yourHoles.some((c) => c !== null);
+  const wasBetweenHands =
+    !prev ||
+    prev.street === "predeal" ||
+    prev.handOver ||
+    prev.street === "river";
+  if (dealtHoles && wasBetweenHands && prev?.street !== "holes") {
+    state.handsDealtCount += 1;
+  }
+
   state.onlineSupportsBetting = typeof view.pot === "number";
-  state.online = normalizeOnlineView(view);
+  state.online = normalized;
   state.mode = "online";
   state.onlineError = null;
   state.gameType = view.gameType;
@@ -335,6 +354,7 @@ function startOnline(roomCode: string) {
   state.equities = null;
   state.outsSeat = null;
   state.picking = null;
+  state.handsDealtCount = 0;
   render();
 
   connectOnline(state.roomCode, state.gameType, {
@@ -378,6 +398,7 @@ function dealHoles() {
     }
   }
   state.street = "holes";
+  state.handsDealtCount += 1;
   refreshEquity();
   render();
 }
@@ -463,6 +484,7 @@ function backToSetup() {
   state.onlineError = null;
   state.outsSeat = null;
   state.picking = null;
+  state.handsDealtCount = 0;
   resetDealAnimationState();
   render();
 }
