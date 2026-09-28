@@ -276,27 +276,6 @@ export class PokerRoom extends Server<Env> {
   }
 
   private afterAction() {
-    // #region agent log
-    console.log(
-      JSON.stringify({
-        sessionId: "4e23",
-        location: "server.ts:afterAction",
-        message: "afterAction",
-        data: {
-          street: this.street,
-          complete: this.bettingRoundComplete(),
-          active: this.activeSeats(),
-          acted: this.seats.map((s) => s.acted),
-          bets: this.seats.map((s) => s.betStreet),
-          chips: this.seats.map((s) => s.chips),
-          currentBet: this.currentBet,
-          actionSeat: this.actionSeat,
-        },
-        timestamp: Date.now(),
-        hypothesisId: "A",
-      }),
-    );
-    // #endregion
     if (this.activeSeats().length <= 1) {
       this.finishByFold();
       return;
@@ -312,23 +291,6 @@ export class PokerRoom extends Server<Env> {
 
   /** After a betting round ends, showdown or auto-deal the next board street. */
   private onBettingComplete() {
-    // #region agent log
-    console.log(
-      JSON.stringify({
-        sessionId: "4e23",
-        location: "server.ts:onBettingComplete",
-        message: "onBettingComplete enter",
-        data: {
-          street: this.street,
-          bettingOpen: this.bettingOpen,
-          handOver: this.handOver,
-          board: this.board.slice(),
-        },
-        timestamp: Date.now(),
-        hypothesisId: "B",
-      }),
-    );
-    // #endregion
     if (this.street === "river") {
       this.showdown();
       return;
@@ -341,28 +303,9 @@ export class PokerRoom extends Server<Env> {
     if (!this.bettingOpen && !this.handOver && this.street === "river") {
       this.showdown();
     }
-    // #region agent log
-    console.log(
-      JSON.stringify({
-        sessionId: "4e23",
-        location: "server.ts:onBettingComplete",
-        message: "onBettingComplete exit",
-        data: {
-          street: this.street,
-          bettingOpen: this.bettingOpen,
-          handOver: this.handOver,
-          board: this.board.slice(),
-          actionSeat: this.actionSeat,
-        },
-        timestamp: Date.now(),
-        hypothesisId: "B",
-      }),
-    );
-    // #endregion
   }
 
   private dealNextBoardStreet() {
-    const from = this.street;
     if (this.street === "holes") {
       this.draw(1);
       const flop = this.draw(3);
@@ -384,32 +327,8 @@ export class PokerRoom extends Server<Env> {
       this.street = "river";
       this.pushHistory(`River ${this.formatCard(river)}`);
     } else {
-      // #region agent log
-      console.log(
-        JSON.stringify({
-          sessionId: "4e23",
-          location: "server.ts:dealNextBoardStreet",
-          message: "early return wrong street",
-          data: { street: this.street },
-          timestamp: Date.now(),
-          hypothesisId: "B",
-        }),
-      );
-      // #endregion
       return;
     }
-    // #region agent log
-    console.log(
-      JSON.stringify({
-        sessionId: "4e23",
-        location: "server.ts:dealNextBoardStreet",
-        message: "dealt street",
-        data: { from, to: this.street, board: this.board.slice() },
-        timestamp: Date.now(),
-        hypothesisId: "B",
-      }),
-    );
-    // #endregion
     this.startBettingRound();
   }
 

@@ -297,9 +297,6 @@ function renderPotDisplay(pot: number): string {
 }
 
 function applyOnlineView(view: RoomView) {
-  // #region agent log
-  fetch('http://127.0.0.1:7243/ingest/4e23a1b0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4e23'},body:JSON.stringify({sessionId:'4e23',runId:'post-fix',location:'main.ts:applyOnlineView',message:'view applied',data:{street:view.street,board:view.board,bettingOpen:view.bettingOpen,bettingComplete:view.bettingComplete,handOver:view.handOver,actionSeat:view.actionSeat,historyTail:(view.history||[]).slice(-3)},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
-  // #endregion
   const prev = state.online;
   const normalized = normalizeOnlineView(view);
   // Count a new deal when hole cards appear for a fresh hand.
@@ -367,9 +364,6 @@ function maybeHostAutoDealStreet(prev: RoomView | null, view: RoomView) {
           ? ({ type: "deal_river" } as const)
           : null;
   if (!msg) return;
-  // #region agent log
-  fetch('http://127.0.0.1:7243/ingest/4e23a1b0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4e23'},body:JSON.stringify({sessionId:'4e23',runId:'post-fix',location:'main.ts:maybeHostAutoDealStreet',message:'host fallback deal',data:{street:view.street,msg:msg.type},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
-  // #endregion
   sendOnline(msg);
 }
 
