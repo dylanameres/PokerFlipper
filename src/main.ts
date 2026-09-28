@@ -308,6 +308,8 @@ function applyOnlineView(view: RoomView) {
     prev.street === "river";
   if (dealtHoles && wasBetweenHands && prev?.street !== "holes") {
     state.handsDealtCount += 1;
+    // Same seat slots as the prior hand — clear so redeal fly-ins run again.
+    resetDealAnimationState();
   }
 
   state.onlineSupportsBetting = typeof view.pot === "number";
@@ -399,6 +401,8 @@ function dealHoles() {
   }
   state.street = "holes";
   state.handsDealtCount += 1;
+  // Slot keys are reused across hands; forget them so redeal animates.
+  resetDealAnimationState();
   refreshEquity();
   render();
 }
