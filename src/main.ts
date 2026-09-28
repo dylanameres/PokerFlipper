@@ -296,6 +296,9 @@ function renderPotDisplay(pot: number): string {
 }
 
 function applyOnlineView(view: RoomView) {
+  // #region agent log
+  fetch('http://127.0.0.1:7243/ingest/4e23a1b0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4e23'},body:JSON.stringify({sessionId:'4e23',runId:'post-fix',location:'main.ts:applyOnlineView',message:'view applied',data:{street:view.street,board:view.board,bettingOpen:view.bettingOpen,bettingComplete:view.bettingComplete,handOver:view.handOver,actionSeat:view.actionSeat,historyTail:(view.history||[]).slice(-3)},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
+  // #endregion
   const prev = state.online;
   const normalized = normalizeOnlineView(view);
   // Count a new deal when hole cards appear for a fresh hand.
@@ -342,6 +345,31 @@ function applyOnlineView(view: RoomView) {
   state.outsSeat = null;
   state.screen = "table";
   render();
+
+  // Host fallback: if the room is stuck with bettingComplete (older server, or
+  // auto-deal missed), request the next street. Server treats this as a no-op
+  // when it already advanced.
+  maybeHostAutoDealStreet(prev, normalized);
+}
+
+/** Host-only: send deal_* when a betting round finished but the board did not advance. */
+function maybeHostAutoDealStreet(prev: RoomView | null, view: RoomView) {
+  if (!view.youAreHost || !view.bettingComplete || view.handOver) return;
+  // Only fire on the transition into bettingComplete so we do not spam.
+  if (prev?.bettingComplete && prev.street === view.street) return;
+  const msg =
+    view.street === "holes"
+      ? ({ type: "deal_flop" } as const)
+      : view.street === "flop"
+        ? ({ type: "deal_turn" } as const)
+        : view.street === "turn"
+          ? ({ type: "deal_river" } as const)
+          : null;
+  if (!msg) return;
+  // #region agent log
+  fetch('http://127.0.0.1:7243/ingest/4e23a1b0',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4e23'},body:JSON.stringify({sessionId:'4e23',runId:'post-fix',location:'main.ts:maybeHostAutoDealStreet',message:'host fallback deal',data:{street:view.street,msg:msg.type},timestamp:Date.now(),hypothesisId:'E'})}).catch(()=>{});
+  // #endregion
+  sendOnline(msg);
 }
 
 function startOnline(roomCode: string) {
@@ -1026,18 +1054,20 @@ function renderTable(): string {
     })
     .join("");
 
+  const onlineStreetDeal =
+    Boolean(online?.youAreHost && online.bettingComplete && !online.handOver);
   const canFlop =
-    state.mode === "solo" &&
+    (state.mode === "solo" || onlineStreetDeal) &&
     state.street === "holes" &&
     hostCanDeal &&
     streetReady;
   const canTurn =
-    state.mode === "solo" &&
+    (state.mode === "solo" || onlineStreetDeal) &&
     state.street === "flop" &&
     hostCanDeal &&
     streetReady;
   const canRiver =
-    state.mode === "solo" &&
+    (state.mode === "solo" || onlineStreetDeal) &&
     state.street === "turn" &&
     hostCanDeal &&
     streetReady;
@@ -1145,7 +1175,7 @@ function renderTable(): string {
             ${state.handsDealtCount >= 1 ? "Redeal" : "Deal hands"}
           </button>
           ${
-            state.mode === "solo"
+            state.mode === "solo" || onlineStreetDeal
               ? `<button type="button" class="btn" id="btn-deal-flop" ${
                   canFlop ? "" : "disabled"
                 }>

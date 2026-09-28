@@ -212,6 +212,10 @@ export class PokerRoom extends Server<Env> {
     for (const seat of this.seats) {
       seat.acted = false;
     }
+    // Short all-in from blinds still counts as having acted for round completion.
+    for (const i of this.activeSeats()) {
+      if (this.seats[i].chips === 0) this.seats[i].acted = true;
+    }
     const active = this.activeSeats();
     if (active.length < 2) {
       this.bettingOpen = false;
@@ -237,6 +241,10 @@ export class PokerRoom extends Server<Env> {
     for (const seat of this.seats) {
       seat.betStreet = 0;
       seat.acted = false;
+    }
+    // All-in players cannot act — mark them acted so the round can complete.
+    for (const i of this.activeSeats()) {
+      if (this.seats[i].chips === 0) this.seats[i].acted = true;
     }
     const active = this.activeSeats();
     if (active.length < 2 || active.every((i) => this.seats[i].chips === 0)) {
@@ -268,6 +276,27 @@ export class PokerRoom extends Server<Env> {
   }
 
   private afterAction() {
+    // #region agent log
+    console.log(
+      JSON.stringify({
+        sessionId: "4e23",
+        location: "server.ts:afterAction",
+        message: "afterAction",
+        data: {
+          street: this.street,
+          complete: this.bettingRoundComplete(),
+          active: this.activeSeats(),
+          acted: this.seats.map((s) => s.acted),
+          bets: this.seats.map((s) => s.betStreet),
+          chips: this.seats.map((s) => s.chips),
+          currentBet: this.currentBet,
+          actionSeat: this.actionSeat,
+        },
+        timestamp: Date.now(),
+        hypothesisId: "A",
+      }),
+    );
+    // #endregion
     if (this.activeSeats().length <= 1) {
       this.finishByFold();
       return;
@@ -283,6 +312,23 @@ export class PokerRoom extends Server<Env> {
 
   /** After a betting round ends, showdown or auto-deal the next board street. */
   private onBettingComplete() {
+    // #region agent log
+    console.log(
+      JSON.stringify({
+        sessionId: "4e23",
+        location: "server.ts:onBettingComplete",
+        message: "onBettingComplete enter",
+        data: {
+          street: this.street,
+          bettingOpen: this.bettingOpen,
+          handOver: this.handOver,
+          board: this.board.slice(),
+        },
+        timestamp: Date.now(),
+        hypothesisId: "B",
+      }),
+    );
+    // #endregion
     if (this.street === "river") {
       this.showdown();
       return;
@@ -295,9 +341,28 @@ export class PokerRoom extends Server<Env> {
     if (!this.bettingOpen && !this.handOver && this.street === "river") {
       this.showdown();
     }
+    // #region agent log
+    console.log(
+      JSON.stringify({
+        sessionId: "4e23",
+        location: "server.ts:onBettingComplete",
+        message: "onBettingComplete exit",
+        data: {
+          street: this.street,
+          bettingOpen: this.bettingOpen,
+          handOver: this.handOver,
+          board: this.board.slice(),
+          actionSeat: this.actionSeat,
+        },
+        timestamp: Date.now(),
+        hypothesisId: "B",
+      }),
+    );
+    // #endregion
   }
 
   private dealNextBoardStreet() {
+    const from = this.street;
     if (this.street === "holes") {
       this.draw(1);
       const flop = this.draw(3);
@@ -319,8 +384,32 @@ export class PokerRoom extends Server<Env> {
       this.street = "river";
       this.pushHistory(`River ${this.formatCard(river)}`);
     } else {
+      // #region agent log
+      console.log(
+        JSON.stringify({
+          sessionId: "4e23",
+          location: "server.ts:dealNextBoardStreet",
+          message: "early return wrong street",
+          data: { street: this.street },
+          timestamp: Date.now(),
+          hypothesisId: "B",
+        }),
+      );
+      // #endregion
       return;
     }
+    // #region agent log
+    console.log(
+      JSON.stringify({
+        sessionId: "4e23",
+        location: "server.ts:dealNextBoardStreet",
+        message: "dealt street",
+        data: { from, to: this.street, board: this.board.slice() },
+        timestamp: Date.now(),
+        hypothesisId: "B",
+      }),
+    );
+    // #endregion
     this.startBettingRound();
   }
 
@@ -535,14 +624,25 @@ export class PokerRoom extends Server<Env> {
       case "deal_flop":
       case "deal_turn":
       case "deal_river": {
-        // Streets auto-deal after betting; keep host messages as a no-op when ready.
+        // Streets auto-deal after betting; host deal_* is an idempotent fallback.
         const expected =
           msg.type === "deal_flop"
             ? "holes"
             : msg.type === "deal_turn"
               ? "flop"
               : "turn";
-        this.requireHostDeal(isHost, expected);
+        if (!isHost) throw new Error("Only the host can deal");
+        // Already advanced (server auto-deal won the race) — no-op.
+        if (this.street !== expected) {
+          this.broadcastViews();
+          return;
+        }
+        if (this.handOver) {
+          throw new Error("Hand is over — deal hands for a new one");
+        }
+        if (this.bettingOpen || !this.bettingRoundComplete()) {
+          throw new Error("Finish betting first");
+        }
         this.onBettingComplete();
         this.broadcastViews();
         return;
