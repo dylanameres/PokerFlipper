@@ -525,32 +525,55 @@ legend {
 
 .seat__badges {
   display: flex;
-  gap: 4px;
+  gap: 6px;
   justify-content: center;
-  margin-bottom: 4px;
+  align-items: center;
+  margin-bottom: 6px;
+  min-height: 28px;
 }
 
-.seat__badge {
+.seat__btn-puck {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 22px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 4px;
-  font-size: 0.62rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 0.85rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
   color: #1a1208;
-  background: #e8c35a;
+  background:
+    radial-gradient(circle at 35% 30%, #fff9e6 0%, #f0d78c 45%, #c9a227 100%);
+  border: 2px solid rgba(255, 255, 255, 0.75);
+  box-shadow:
+    0 0 0 1px rgba(80, 50, 0, 0.35),
+    0 3px 6px rgba(0, 0, 0, 0.45);
 }
 
-.seat__badge--sb {
-  background: #90caf9;
+.seat__blind {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35);
 }
 
-.seat__badge--bb {
-  background: #ef9a9a;
+.seat__blind--sb {
+  background: linear-gradient(180deg, #64b5f6 0%, #1565c0 100%);
+}
+
+.seat__blind--bb {
+  background: linear-gradient(180deg, #ef5350 0%, #b71c1c 100%);
 }
 
 .board__cards,

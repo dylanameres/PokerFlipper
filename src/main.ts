@@ -812,9 +812,15 @@ function renderTable(): string {
       const seatInfo = online?.seats[i];
       const roleBadges = seatInfo
         ? [
-            seatInfo.isButton ? `<span class="seat__badge seat__badge--d" title="Dealer">D</span>` : "",
-            seatInfo.isSmallBlind ? `<span class="seat__badge seat__badge--sb" title="Small blind">SB</span>` : "",
-            seatInfo.isBigBlind ? `<span class="seat__badge seat__badge--bb" title="Big blind">BB</span>` : "",
+            seatInfo.isButton
+              ? `<span class="seat__btn-puck" title="Dealer button" aria-label="Dealer">D</span>`
+              : "",
+            seatInfo.isSmallBlind
+              ? `<span class="seat__blind seat__blind--sb" title="Small blind">SB</span>`
+              : "",
+            seatInfo.isBigBlind
+              ? `<span class="seat__blind seat__blind--bb" title="Big blind">BB</span>`
+              : "",
           ]
             .filter(Boolean)
             .join("")
