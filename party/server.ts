@@ -144,50 +144,17 @@ export class PokerRoom extends Server<Env> {
     }
   }
 
-  private formatCard(card: number): string {
-    const ranks = "23456789TJQKA";
-    const suits = "shdc";
-    return `${ranks[card >> 2]}${suits[card & 3]}`;
-  }
-
-  private formatCards(cards: number[]): string {
-    return cards.map((c) => this.formatCard(c)).join(" ");
-  }
-
-  private seatHoles(seat: number): number[] {
-    return this.seats[seat].holes.filter((c): c is number => c !== null);
-  }
-
-  /**
-   * One line per finished hand: winner + pot + hole cards.
-   * On a fold, only the winner's cards are included (mucked hand stays hidden).
-   */
-  private recordHandResult(
-    pot: number,
-    winners: number[],
-    opts: { byFold: boolean },
-  ) {
+  /** One line per finished hand: who won and how much. */
+  private recordHandResult(pot: number, winners: number[]) {
     let result: string;
     if (winners.length === 2) {
       result = `Chop ${pot}`;
     } else if (winners.length === 1) {
-      result = opts.byFold
-        ? `${this.seatLabel(winners[0])} wins ${pot} (fold)`
-        : `${this.seatLabel(winners[0])} wins ${pot}`;
+      result = `${this.seatLabel(winners[0])} wins ${pot}`;
     } else {
       result = `Pot ${pot}`;
     }
-
-    const cardBits: string[] = [];
-    for (let i = 0; i < this.seats.length; i++) {
-      const holes = this.seatHoles(i);
-      if (holes.length === 0) continue;
-      if (opts.byFold && !winners.includes(i)) continue;
-      cardBits.push(`${this.seatLabel(i)} ${this.formatCards(holes)}`);
-    }
-
-    const cards = cardBits.length ? ` · ${cardBits.join(" · ")}` : "";
-    this.pushHistory(`#${this.handsDealt} ${result}${cards}`);
+    this.pushHistory(`#${this.handsDealt} ${result}`);
   }
 
   private postBlinds() {
@@ -435,7 +402,7 @@ export class PokerRoom extends Server<Env> {
       this.seats[i].chips += won;
     }
     this.pot = 0;
-    this.recordHandResult(won, winners, { byFold: true });
+    this.recordHandResult(won, winners);
   }
 
   private showdown() {
@@ -452,7 +419,7 @@ export class PokerRoom extends Server<Env> {
       const won = this.pot;
       this.seats[active[0]].chips += this.pot;
       this.pot = 0;
-      this.recordHandResult(won, active, { byFold: true });
+      this.recordHandResult(won, active);
       return;
     }
 
@@ -472,7 +439,7 @@ export class PokerRoom extends Server<Env> {
       if (remainder > 0) remainder -= 1;
     }
     this.pot = 0;
-    this.recordHandResult(won, winners, { byFold: false });
+    this.recordHandResult(won, winners);
   }
 
   private requireActor(sender: Connection): number {

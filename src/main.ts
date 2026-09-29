@@ -800,8 +800,8 @@ function renderBettingBar(online: RoomView): string {
     : "";
   return `
     <div class="bet-bar">
-      <button type="button" class="btn btn--ghost" id="btn-fold">Fold</button>
-      <button type="button" class="btn" id="btn-call">${callLabel}</button>
+      <button type="button" class="seat__marker seat__marker--action seat__marker--fold" id="btn-fold">Fold</button>
+      <button type="button" class="seat__marker seat__marker--action seat__marker--call" id="btn-call">${callLabel}</button>
       ${
         online.canBet
           ? `<div class="bet-bar__presets" role="group" aria-label="Bet size presets">${presets}</div>
@@ -809,7 +809,7 @@ function renderBettingBar(online: RoomView): string {
               <span>${betLabel}</span>
               <input type="number" id="bet-amount" min="${online.minBet}" max="${online.maxBet}" value="${defaultAmt}" step="10" />
             </label>
-            <button type="button" class="btn btn--primary" id="btn-bet">${betLabel}</button>`
+            <button type="button" class="seat__marker seat__marker--action seat__marker--bet" id="btn-bet">${betLabel}</button>`
           : ""
       }
     </div>
