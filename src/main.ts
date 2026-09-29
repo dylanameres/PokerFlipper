@@ -33,6 +33,9 @@ import {
 type Screen = "setup" | "table";
 type Street = "predeal" | "holes" | "flop" | "turn" | "river";
 type PlayMode = "solo" | "online";
+type PickingTarget =
+  | { kind: "hole"; player: number; slot: number }
+  | { kind: "board"; slot: number };
 
 interface AppState {
   screen: Screen;
@@ -46,8 +49,8 @@ interface AppState {
   equities: number[] | null;
   /** Seat index whose outs panel is open, or null. */
   outsSeat: number | null;
-  /** Hole-card picker target, or null when closed. */
-  picking: { player: number; slot: number } | null;
+  /** Card picker target (hole or board), or null when closed. */
+  picking: PickingTarget | null;
   settingsOpen: boolean;
   fourColorDeck: boolean;
   /** Solo only: show equity % and outs UI. */
@@ -175,16 +178,24 @@ function filledBoard(): Card[] {
   return state.board.filter((c): c is Card => c !== null);
 }
 
-function usedCards(except?: { player: number; slot: number }): Set<Card> {
+function usedCards(except?: PickingTarget | null): Set<Card> {
   const used = new Set<Card>();
   for (let p = 0; p < state.hands.length; p++) {
     for (let s = 0; s < state.hands[p].length; s++) {
-      if (except && except.player === p && except.slot === s) continue;
+      if (
+        except?.kind === "hole" &&
+        except.player === p &&
+        except.slot === s
+      ) {
+        continue;
+      }
       const c = state.hands[p][s];
       if (c !== null) used.add(c);
     }
   }
-  for (const c of state.board) {
+  for (let i = 0; i < state.board.length; i++) {
+    if (except?.kind === "board" && except.slot === i) continue;
+    const c = state.board[i];
     if (c !== null) used.add(c);
   }
   return used;
@@ -430,9 +441,16 @@ function dealHoles() {
   render();
 }
 
-function openPicker(player: number, slot: number) {
+function openHolePicker(player: number, slot: number) {
   if (state.mode === "online") return; // server deals; no client picks
-  state.picking = { player, slot };
+  state.picking = { kind: "hole", player, slot };
+  render();
+}
+
+function openBoardPicker(slot: number) {
+  if (state.mode === "online") return;
+  if (slot < 0 || slot > 4) return;
+  state.picking = { kind: "board", slot };
   render();
 }
 
@@ -441,15 +459,38 @@ function closePicker() {
   render();
 }
 
-function assignHoleCard(card: Card | null) {
+/** Derive street from how many board cards are set (trainer / manual pick). */
+function syncStreetFromBoard() {
+  if (!holesComplete() && state.street === "predeal") return;
+  const n = state.board.filter((c) => c !== null).length;
+  if (n >= 5) {
+    state.street = "river";
+    state.outsSeat = null;
+  } else if (n === 4) {
+    state.street = "turn";
+  } else if (n >= 3) {
+    state.street = "flop";
+  } else if (holesComplete()) {
+    state.street = "holes";
+  }
+}
+
+function assignPickedCard(card: Card | null) {
   if (!state.picking) return;
-  const { player, slot } = state.picking;
-  state.hands[player][slot] = card;
+  const target = state.picking;
+  if (target.kind === "hole") {
+    state.hands[target.player][target.slot] = card;
+  } else {
+    state.board[target.slot] = card;
+  }
   state.picking = null;
   rebuildDeck();
-  if (state.street !== "predeal") {
-    refreshEquity();
-    syncOutsSeat();
+  if (target.kind === "board" || state.street !== "predeal") {
+    if (target.kind === "board") syncStreetFromBoard();
+    if (state.street !== "predeal") {
+      refreshEquity();
+      syncOutsSeat();
+    }
   }
   render();
 }
@@ -636,6 +677,7 @@ function renderCard(
     compact?: boolean;
     pickPlayer?: number;
     pickSlot?: number;
+    pickBoard?: number;
     faceDown?: boolean;
     dealKey?: string;
     pendingDeal?: boolean;
@@ -645,14 +687,21 @@ function renderCard(
     compact = false,
     pickPlayer,
     pickSlot,
+    pickBoard,
     faceDown = false,
     dealKey,
     pendingDeal = false,
   } = opts;
-  const pickAttrs =
-    !faceDown && pickPlayer !== undefined && pickSlot !== undefined
-      ? ` data-pick-player="${pickPlayer}" data-pick-slot="${pickSlot}" role="button" tabindex="0"`
-      : "";
+  let pickAttrs = "";
+  if (!faceDown && pickBoard !== undefined) {
+    pickAttrs = ` data-pick-board="${pickBoard}" role="button" tabindex="0"`;
+  } else if (
+    !faceDown &&
+    pickPlayer !== undefined &&
+    pickSlot !== undefined
+  ) {
+    pickAttrs = ` data-pick-player="${pickPlayer}" data-pick-slot="${pickSlot}" role="button" tabindex="0"`;
+  }
   const pickClass = pickAttrs ? " card--pickable" : "";
   const dealAttr = dealKey ? ` data-deal-key="${dealKey}"` : "";
   const pendingClass = pendingDeal ? " card--pending-deal" : "";
@@ -1205,6 +1254,7 @@ function renderTable(): string {
                   const dealKey = `b-${i}`;
                   const filled = c !== null;
                   return renderCard(c, {
+                    pickBoard: state.mode === "solo" ? i : undefined,
                     dealKey: filled ? dealKey : undefined,
                     pendingDeal: filled && freshDealKeys.has(dealKey),
                   });
@@ -1255,14 +1305,19 @@ function renderTable(): string {
 
 function renderCardPicker(): string {
   if (!state.picking) return "";
-  const { player, slot } = state.picking;
-  const blocked = usedCards({ player, slot });
+  const target = state.picking;
+  const blocked = usedCards(target);
   const suitNames: Record<string, string> = {
     s: "Spades",
     h: "Hearts",
     d: "Diamonds",
     c: "Clubs",
   };
+  const boardLabels = ["Flop 1", "Flop 2", "Flop 3", "Turn", "River"];
+  const subtitle =
+    target.kind === "hole"
+      ? `P${target.player + 1} · slot ${target.slot + 1}`
+      : boardLabels[target.slot] ?? `Board ${target.slot + 1}`;
 
   const rows = SUITS.map((suit) => {
     const buttons = RANKS.map((rank) => {
@@ -1287,7 +1342,7 @@ function renderCardPicker(): string {
         <header class="picker__head">
           <div>
             <h2>Pick a card</h2>
-            <p>P${player + 1} · slot ${slot + 1}</p>
+            <p>${subtitle}</p>
           </div>
           <button type="button" class="outs__close" id="btn-close-picker" aria-label="Cancel">×</button>
         </header>
@@ -1303,11 +1358,11 @@ function hintForStreet(street: Street): string {
     case "predeal":
       return "Click any card slot to choose it. Deal hands randomizes only empty slots.";
     case "holes":
-      return "Click a hole card to change it. Deal the flop when ready.";
+      return "Click hole or board cards to set them. Equity updates as the board fills.";
     case "flop":
-      return "Equity updated. Trailing hands can View outs for the turn.";
+      return "Equity updated. Click board cards to change them, or View outs for the turn.";
     case "turn":
-      return "Equity updated. Trailing hands can View outs for the river.";
+      return "Equity updated. Click board cards to change them, or View outs for the river.";
     case "river":
       return "Board complete — equity is the final result. Deal hands for a new round.";
   }
@@ -1496,7 +1551,17 @@ function bindEvents() {
   document.querySelectorAll<HTMLElement>("[data-pick-player]").forEach((el) => {
     el.addEventListener("click", (e) => {
       e.stopPropagation();
-      openPicker(Number(el.dataset.pickPlayer), Number(el.dataset.pickSlot));
+      openHolePicker(
+        Number(el.dataset.pickPlayer),
+        Number(el.dataset.pickSlot),
+      );
+    });
+  });
+
+  document.querySelectorAll<HTMLElement>("[data-pick-board]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openBoardPicker(Number(el.dataset.pickBoard));
     });
   });
 
@@ -1506,11 +1571,11 @@ function bindEvents() {
   });
   document.getElementById("btn-close-picker")?.addEventListener("click", closePicker);
   document.getElementById("btn-clear-pick")?.addEventListener("click", () => {
-    assignHoleCard(null);
+    assignPickedCard(null);
   });
   document.querySelectorAll<HTMLButtonElement>("[data-pick-card]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      assignHoleCard(Number(btn.dataset.pickCard));
+      assignPickedCard(Number(btn.dataset.pickCard));
     });
   });
   document.getElementById("picker-sidebar")?.addEventListener("click", (e) => {
