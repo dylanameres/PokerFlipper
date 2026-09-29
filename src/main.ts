@@ -869,7 +869,29 @@ function personalizeHistoryLine(line: string, yourSeat: number | null): string {
   if (yourSeat === null) return line;
   const yours = `P${yourSeat + 1}`;
   const opp = `P${(1 - yourSeat) + 1}`; // seats 0/1 → P1/P2
-  return line.split(yours).join("You").split(opp).join("Opp");
+  return line
+    .split(`${yours} wins`)
+    .join("You win")
+    .split(`${opp} wins`)
+    .join("Opp wins")
+    .split(yours)
+    .join("You")
+    .split(opp)
+    .join("Opp");
+}
+
+/** Per-viewer tone: your win → green, your loss → red, chop → muted. */
+function historyLineTone(
+  line: string,
+  yourSeat: number | null,
+): "win" | "loss" | "chop" | "neutral" {
+  if (/\bChop\b/i.test(line)) return "chop";
+  if (yourSeat === null) return "neutral";
+  const yours = `P${yourSeat + 1}`;
+  const opp = `P${(1 - yourSeat) + 1}`;
+  if (line.includes(`${yours} wins`)) return "win";
+  if (line.includes(`${opp} wins`)) return "loss";
+  return "neutral";
 }
 
 function renderHistorySidebar(online: RoomView): string {
@@ -880,8 +902,16 @@ function renderHistorySidebar(online: RoomView): string {
       : `<ol class="history__list">${lines
           .map((line) => {
             const text = personalizeHistoryLine(line, online.yourSeat);
-            const win = /\bwins\b|\bChop\b/.test(line);
-            return `<li class="history__line${win ? " history__line--result" : ""}">${text}</li>`;
+            const tone = historyLineTone(line, online.yourSeat);
+            const toneClass =
+              tone === "win"
+                ? " history__line--win"
+                : tone === "loss"
+                  ? " history__line--loss"
+                  : tone === "chop"
+                    ? " history__line--chop"
+                    : "";
+            return `<li class="history__line history__line--result${toneClass}">${text}</li>`;
           })
           .join("")}</ol>`;
   return `
