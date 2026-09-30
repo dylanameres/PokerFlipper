@@ -64,11 +64,17 @@ export class PokerTable {
   }
 
   ensureSeats() {
-    if (this.seatsReady) return;
-    this.seats = Array.from({ length: MAX_ONLINE_PLAYERS }, () =>
-      this.freshSeat(),
-    );
-    this.seatsReady = true;
+    if (!this.seatsReady) {
+      this.seats = Array.from({ length: MAX_ONLINE_PLAYERS }, () =>
+        this.freshSeat(),
+      );
+      this.seatsReady = true;
+      return;
+    }
+    // Hot-upgrade older rooms that were created with fewer chairs.
+    while (this.seats.length < MAX_ONLINE_PLAYERS) {
+      this.seats.push(this.freshSeat());
+    }
   }
 
   private freshSeat(): RoomSeat {

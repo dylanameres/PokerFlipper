@@ -34,6 +34,24 @@ describe("PokerTable multiplayer framework", () => {
     }
   });
 
+  it("seats three distinct playerIds on three different chairs", () => {
+    const table = new PokerTable(() => {});
+    const a = table.seatPlayer("c-a", "player-a");
+    const b = table.seatPlayer("c-b", "player-b");
+    const c = table.seatPlayer("c-c", "player-c");
+    expect(a.ok && b.ok && c.ok).toBe(true);
+    if (!a.ok || !b.ok || !c.ok) return;
+    expect(new Set([a.seat, b.seat, c.seat]).size).toBe(3);
+    expect(table.seatedCount()).toBe(3);
+    expect(table.viewFor("c-c", "3").seatedCount).toBe(3);
+    // Same playerId reclaims instead of taking a 4th chair.
+    const again = table.seatPlayer("c-a2", "player-a");
+    expect(again.ok).toBe(true);
+    if (!again.ok) return;
+    expect(again.seat).toBe(a.seat);
+    expect(table.seatedCount()).toBe(3);
+  });
+
   it("deals with MIN players even when seats remain empty", () => {
     const { table, ids } = seatedTable(MIN_ONLINE_PLAYERS);
     expect(table.readyToDeal()).toBe(true);
