@@ -21,16 +21,23 @@ function partyHost(): string {
   return import.meta.env.VITE_PARTYKIT_HOST || "127.0.0.1:1999";
 }
 
-/** Stable per-browser id used to reclaim the same seat after reconnect. */
+function newPlayerId(): string {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return `p_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+}
+
+/**
+ * Stable per-tab id used to reclaim the same seat after refresh/reconnect.
+ * sessionStorage (not localStorage) so each tab is a distinct player — otherwise
+ * every tab in the same browser would reclaim one seat and the table would look
+ * capped at 1–2 players.
+ */
 export function getBrowserPlayerId(): string {
   try {
-    const existing = localStorage.getItem(PLAYER_ID_KEY);
+    const existing = sessionStorage.getItem(PLAYER_ID_KEY);
     if (existing && existing.length >= 8) return existing;
-    const id =
-      typeof crypto.randomUUID === "function"
-        ? crypto.randomUUID()
-        : `p_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
-    localStorage.setItem(PLAYER_ID_KEY, id);
+    const id = newPlayerId();
+    sessionStorage.setItem(PLAYER_ID_KEY, id);
     return id;
   } catch {
     // Private mode / blocked storage — ephemeral id for this page lifetime.

@@ -956,6 +956,16 @@ button.seat__marker--bet {
   z-index: 3;
 }
 
+/* Winner seat + badge always paint above neighboring seats/cards. */
+.seat--winner {
+  z-index: 40;
+}
+
+.seat--winner .seat__cards {
+  position: relative;
+  z-index: 1;
+}
+
 .seat__label {
   margin-top: 6px;
   font-size: 0.75rem;
@@ -1105,6 +1115,13 @@ button.seat__marker--bet {
 }
 
 .seat__winner {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translate(-50%, calc(-100% - 6px));
+  z-index: 50;
+  pointer-events: none;
+  white-space: nowrap;
   font-family: "Cinzel", "Times New Roman", serif;
   font-weight: 700;
   font-size: clamp(1.35rem, 2.4vw, 1.85rem);
@@ -1117,7 +1134,6 @@ button.seat__marker--bet {
   -webkit-text-fill-color: transparent;
   filter: drop-shadow(0 0 10px rgba(232, 195, 90, 0.55))
     drop-shadow(0 2px 2px rgba(0, 0, 0, 0.55));
-  margin-bottom: 4px;
   line-height: 1.1;
   animation: winner-shine 2.4s ease-in-out infinite;
 }
