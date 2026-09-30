@@ -1040,7 +1040,7 @@ function renderSetup(): string {
   `;
 
   const onlineFields = `
-        <p class="setup-note">2 players · 1000 chips · blinds 25/50 · button rotates each hand · hole cards private until showdown</p>
+        <p class="setup-note">Up to ${MAX_ONLINE_PLAYERS} players · 1000 chips · blinds 25/50 · button rotates each hand · hole cards private until showdown</p>
         <button type="button" class="btn btn--primary" id="btn-create-room">Create room</button>
         <div class="join-row">
           <input
@@ -1242,7 +1242,6 @@ function renderTable(): string {
 
       return `
         <div class="${seatClassFull}" style="${seatStyle(layoutIndex, state.playerCount)}" data-seat="${i}">
-          ${winner ? `<div class="seat__winner">Winner</div>` : ""}
           ${roleBadges ? `<div class="seat__badges">${roleBadges}</div>` : ""}
           <div class="seat__cards">
             ${
@@ -1264,6 +1263,7 @@ function renderTable(): string {
                     .join("")
             }
           </div>
+          ${winner ? `<div class="seat__winner">Winner</div>` : ""}
           <div class="seat__label">${
             emptyOnline
               ? "Empty"
