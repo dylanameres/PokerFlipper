@@ -144,14 +144,15 @@ describe("PokerTable multiplayer framework", () => {
     const { table, ids } = seatedTable(3);
     table.handle({ type: "deal_hands" }, ids[0]);
     const v = table.viewFor(ids[0], "3ACT");
+    // button 0 → SB 1 (left), BB 2; first to act = left of BB = 0 (UTG/button).
     expect(v.seats[0].isButton).toBe(true);
-    expect(v.seats[2].isSmallBlind).toBe(true);
-    expect(v.seats[1].isBigBlind).toBe(true);
+    expect(v.seats[1].isSmallBlind).toBe(true);
+    expect(v.seats[2].isBigBlind).toBe(true);
     expect(v.actionSeat).toBe(0);
-    table.handle({ type: "call" }, ids[0]);
-    expect(table.viewFor(ids[0], "3ACT").actionSeat).toBe(2);
-    table.handle({ type: "call" }, ids[2]);
-    expect(table.viewFor(ids[0], "3ACT").actionSeat).toBe(1);
+    table.handle({ type: "call" }, ids[0]); // UTG/button limp
+    expect(table.viewFor(ids[0], "3ACT").actionSeat).toBe(1); // SB next (left)
+    table.handle({ type: "call" }, ids[1]);
+    expect(table.viewFor(ids[0], "3ACT").actionSeat).toBe(2); // BB last
   });
 
   it("sits late joiners out of the current hand with a clean seat", () => {
@@ -252,13 +253,13 @@ describe("PokerTable multiplayer framework", () => {
     const { table, ids } = seatedTable(3);
     table.handle({ type: "deal_hands" }, ids[0]);
     const before = table.viewFor(ids[1], "BL");
-    expect(before.seats[2].isSmallBlind).toBe(true);
-    expect(before.seats[1].isBigBlind).toBe(true);
+    expect(before.seats[1].isSmallBlind).toBe(true);
+    expect(before.seats[2].isBigBlind).toBe(true);
 
     table.unseatPlayer(ids[0]);
     const after = table.viewFor(ids[1], "BL");
-    expect(after.seats[1].isBigBlind).toBe(true);
-    expect(after.seats[2].isSmallBlind).toBe(true);
+    expect(after.seats[1].isSmallBlind).toBe(true);
+    expect(after.seats[2].isBigBlind).toBe(true);
     // Button seat stays reserved — marker does not jump.
     expect(after.seats[0].filled).toBe(true);
     expect(after.seats[0].isButton).toBe(true);
@@ -268,17 +269,17 @@ describe("PokerTable multiplayer framework", () => {
 
   it("exposes side-pot layers while a short stack is all-in", () => {
     const { table, ids } = seatedTable(3);
-    // Short stack on seat 0 (button/BB after deal).
+    // Short stack on seat 0 (button/UTG after deal).
     table.seats[0].chips = 100;
     table.seats[1].chips = 500;
     table.seats[2].chips = 500;
     table.handle({ type: "deal_hands" }, ids[0]);
-    // Seat0 is BB with 50 left; UTG action is seat 0 — shove remaining.
+    // Action starts on seat 0 (left of BB); shove to 100.
     expect(table.viewFor(ids[0], "SP").actionSeat).toBe(0);
     table.handle({ type: "bet", amount: 100 }, ids[0]); // all-in to 100
-    // SB (2) calls 100, BB (1) calls 100.
-    table.handle({ type: "call" }, ids[2]);
+    // SB (1) calls 100, BB (2) calls 100.
     table.handle({ type: "call" }, ids[1]);
+    table.handle({ type: "call" }, ids[2]);
     const v = table.viewFor(ids[0], "SP");
     // Main 300 (100×3) + no side yet if all matched 100.
     expect(v.pot).toBe(300);
