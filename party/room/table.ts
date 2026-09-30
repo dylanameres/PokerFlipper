@@ -601,10 +601,13 @@ export class PokerTable {
     }
   }
 
-  /** One filled seat to the left (blinds / button rotate this way). */
+  /**
+   * Next filled seat to the left (action / blinds / button go this way).
+   * Matches the table UI: increasing seat index is left of the hero.
+   */
   private seatLeftOfFilled(seat: number): number {
     for (let step = 1; step <= MAX_ONLINE_PLAYERS; step++) {
-      const next = (seat - step + MAX_ONLINE_PLAYERS) % MAX_ONLINE_PLAYERS;
+      const next = (seat + step) % MAX_ONLINE_PLAYERS;
       if (this.seats[next]?.connectionId) return next;
     }
     return seat;
@@ -728,8 +731,7 @@ export class PokerTable {
   private firstActiveLeftOf(from: number): number | null {
     const canBet = new Set(this.seatsThatCanBet());
     for (let step = 1; step <= MAX_ONLINE_PLAYERS; step++) {
-      const seat =
-        (from - step + MAX_ONLINE_PLAYERS) % MAX_ONLINE_PLAYERS;
+      const seat = (from + step) % MAX_ONLINE_PLAYERS;
       if (canBet.has(seat)) return seat;
     }
     return null;
@@ -883,7 +885,7 @@ export class PokerTable {
     this.startBettingRound();
   }
 
-  /** Advance action left (same direction as blinds). */
+  /** Advance action left (same direction as blinds / UI). */
   private advanceAction() {
     const canBetList = this.seatsThatCanBet();
     if (canBetList.length === 0 || this.actionSeat === null) {
@@ -893,7 +895,7 @@ export class PokerTable {
     const canBet = new Set(canBetList);
     const start = this.actionSeat;
     for (let step = 1; step <= MAX_ONLINE_PLAYERS; step++) {
-      const next = (start - step + MAX_ONLINE_PLAYERS) % MAX_ONLINE_PLAYERS;
+      const next = (start + step) % MAX_ONLINE_PLAYERS;
       if (!canBet.has(next)) continue;
       const s = this.seats[next];
       const needsAction =
