@@ -977,6 +977,15 @@ button.seat__marker--bet {
   letter-spacing: 0.14em;
 }
 
+.seat--empty {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.seat--empty .seat__label {
+  font-style: italic;
+}
+
 .seat--folded {
   opacity: 0.45;
 }
