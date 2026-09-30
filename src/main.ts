@@ -9,6 +9,8 @@ import {
   resetDealAnimationState,
   runDealAnimations,
   ensureDealKeysVisible,
+  isDealKeyAnimating,
+  markDealKeysAnimating,
 } from "./dealAnim";
 import {
   connectOnline,
@@ -1146,7 +1148,13 @@ function renderTable(): string {
   const hostCanDeal = !online || online.youAreHost;
   const showEquityUi = state.mode === "solo" && state.showEquity;
   const streetReady = !online || online.bettingComplete;
-  const freshDealKeys = new Set(newDealKeys(currentDealKeys()));
+  // Keep slots pending while a fly-in is in flight so a re-render does not
+  // flash the face early (which then "re-flips" when the ghost lands).
+  const dealSlotKeys = currentDealKeys();
+  const freshDealKeys = new Set([
+    ...newDealKeys(dealSlotKeys),
+    ...dealSlotKeys.filter((k) => isDealKeyAnimating(k)),
+  ]);
 
   const seats = state.hands
     .map((hand, i) => {
@@ -1508,6 +1516,8 @@ function render() {
   if (state.screen === "table") {
     rememberDealKeys(dealKeys);
     if (incoming.length) {
+      // Mark before the double-rAF gap so intervening renders keep cards hidden.
+      markDealKeysAnimating(incoming);
       // Double-rAF so layout is settled before measuring deck → seat paths.
       requestAnimationFrame(() => {
         requestAnimationFrame(() => runDealAnimations(incoming));
