@@ -6,6 +6,7 @@ dist-ssr
 coverage
 *.tsbuildinfo
 .wrangler
+.partykit
 
 # Editor / OS
 .DS_Store

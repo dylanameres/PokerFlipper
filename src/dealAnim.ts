@@ -7,10 +7,13 @@ export type DealTarget = {
 };
 
 let previousKeys = new Set<string>();
+/** Keys with an in-flight fly-in; stay pending across re-renders until revealed. */
+let animatingKeys = new Set<string>();
 let runId = 0;
 
 export function resetDealAnimationState() {
   previousKeys = new Set();
+  animatingKeys = new Set();
   runId += 1;
 }
 
@@ -20,6 +23,16 @@ export function rememberDealKeys(keys: Iterable<string>) {
 
 export function newDealKeys(current: string[]): string[] {
   return current.filter((k) => !previousKeys.has(k));
+}
+
+/** True while a fly-in is scheduled/running for this slot. */
+export function isDealKeyAnimating(key: string): boolean {
+  return animatingKeys.has(key);
+}
+
+/** Mark keys as in-flight before the double-rAF so re-renders keep them hidden. */
+export function markDealKeysAnimating(keys: Iterable<string>) {
+  for (const k of keys) animatingKeys.add(k);
 }
 
 export function prefersReducedMotion(): boolean {
@@ -35,6 +48,8 @@ export function prefersReducedMotion(): boolean {
  */
 export function runDealAnimations(newKeys: string[]): void {
   if (newKeys.length === 0) return;
+
+  markDealKeysAnimating(newKeys);
 
   const deck = document.getElementById("table-deck");
   const felt = document.querySelector(".felt");
@@ -58,7 +73,7 @@ export function runDealAnimations(newKeys: string[]): void {
   }
 
   if (prefersReducedMotion()) {
-    for (const t of targets) reveal(t.el);
+    for (const t of targets) reveal(t.el, t.key);
     return;
   }
 
@@ -82,7 +97,7 @@ export function runDealAnimations(newKeys: string[]): void {
         return;
       }
       flyCard(deckRect, t.el, () => {
-        // Always reveal this key — even if a newer run started during the flight.
+        // Always settle this key — even if a newer run started during the flight.
         revealAll([t.key]);
       });
     }, i * stagger);
@@ -102,8 +117,18 @@ function dealOrder(key: string): number {
   return 9999;
 }
 
-function reveal(el: HTMLElement) {
+/**
+ * Show a dealt card. Flip only when it was still pending — never re-flip an
+ * already-visible face after a re-render or duplicate reveal.
+ */
+function reveal(el: HTMLElement, key?: string) {
+  const dealKey = key ?? el.dataset.dealKey;
+  if (dealKey) animatingKeys.delete(dealKey);
+
+  const wasPending = el.classList.contains("card--pending-deal");
   el.classList.remove("card--pending-deal");
+  if (!wasPending) return;
+
   el.classList.add("card--dealt");
   window.setTimeout(() => el.classList.remove("card--dealt"), 280);
 }
@@ -111,7 +136,11 @@ function reveal(el: HTMLElement) {
 function revealAll(keys: string[]) {
   for (const key of keys) {
     const el = document.querySelector<HTMLElement>(`[data-deal-key="${key}"]`);
-    if (el) reveal(el);
+    if (el) {
+      reveal(el, key);
+    } else {
+      animatingKeys.delete(key);
+    }
   }
 }
 

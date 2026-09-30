@@ -1,10 +1,16 @@
-import type { RoomView } from "../shared/protocol";
+import type { RoomView, SeatPublic } from "../shared/protocol";
+import {
+  MAX_ONLINE_PLAYERS,
+  MIN_ONLINE_PLAYERS,
+} from "../shared/protocol";
 import {
   newDealKeys,
   rememberDealKeys,
   resetDealAnimationState,
   runDealAnimations,
   ensureDealKeysVisible,
+  isDealKeyAnimating,
+  markDealKeysAnimating,
 } from "./dealAnim";
 import {
   connectOnline,
@@ -244,20 +250,46 @@ function startSoloTable() {
 
 function normalizeOnlineView(view: RoomView): RoomView {
   // Older Workers deploys omit chip/betting fields — fill defaults so render never throws.
-  const seats = (view.seats ?? []).map((s) => ({
+  const seats: SeatPublic[] = (view.seats ?? []).map((s) => ({
     filled: Boolean(s.filled),
     connected: Boolean(s.connected),
     chips: typeof s.chips === "number" ? s.chips : 0,
     bet: typeof s.bet === "number" ? s.bet : 0,
     folded: Boolean(s.folded),
+    inHand: s.inHand !== undefined ? Boolean(s.inHand) : Boolean(s.filled),
     isButton: Boolean(s.isButton),
     isSmallBlind: Boolean(s.isSmallBlind),
     isBigBlind: Boolean(s.isBigBlind),
+    holeHidden: Array.isArray(s.holeHidden)
+      ? s.holeHidden.map(Boolean)
+      : undefined,
+    holes: Array.isArray(s.holes) ? s.holes.map((c) => c) : s.holes ?? undefined,
   }));
+  // Pad to table capacity so layout stays stable as players join.
+  const capacity = view.maxSeats ?? Math.max(seats.length, MAX_ONLINE_PLAYERS);
+  while (seats.length < capacity) {
+    seats.push({
+      filled: false,
+      connected: false,
+      chips: 0,
+      bet: 0,
+      folded: false,
+      inHand: false,
+      isButton: false,
+      isSmallBlind: false,
+      isBigBlind: false,
+    });
+  }
   const hasBetting = typeof view.pot === "number";
+  const seatedCount =
+    typeof view.seatedCount === "number"
+      ? view.seatedCount
+      : seats.filter((s) => s.filled).length;
   return {
     ...view,
     seats,
+    maxSeats: capacity,
+    seatedCount,
     pot: typeof view.pot === "number" ? view.pot : 0,
     smallBlind: typeof view.smallBlind === "number" ? view.smallBlind : 25,
     bigBlind: typeof view.bigBlind === "number" ? view.bigBlind : 50,
@@ -329,7 +361,7 @@ function applyOnlineView(view: RoomView) {
   state.mode = "online";
   state.onlineError = null;
   state.gameType = view.gameType;
-  state.playerCount = 2;
+  state.playerCount = normalized.maxSeats ?? normalized.seats.length;
   state.street = view.street;
   // Prefer the code the client joined with; server name can be blank on some Workers paths.
   if (view.roomId) state.roomCode = view.roomId;
@@ -337,15 +369,30 @@ function applyOnlineView(view: RoomView) {
   state.picking = null;
 
   const holes = HOLE_COUNT[view.gameType];
-  state.hands = emptyHands(2, holes);
-  if (view.yourSeat !== null) {
-    state.hands[view.yourSeat] = view.yourHoles.map((c) => c);
-    const opp = 1 - view.yourSeat;
-    if (view.revealed && view.opponentHoles) {
-      state.hands[opp] = view.opponentHoles.map((c) => c);
-    } else {
-      // Keep nulls; UI renders card-backs from opponentHidden.
-      state.hands[opp] = emptyHands(1, holes)[0];
+  const seatCount = normalized.seats.length;
+  state.hands = emptyHands(seatCount, holes);
+  const inHandSeats: number[] = [];
+  for (let i = 0; i < seatCount; i++) {
+    const seat = normalized.seats[i];
+    if (!seat.filled || seat.inHand === false) continue;
+    inHandSeats.push(i);
+    if (normalized.yourSeat === i) {
+      state.hands[i] = normalized.yourHoles.map((c) => c);
+    } else if (normalized.revealed && seat.holes) {
+      state.hands[i] = seat.holes.map((c) => c);
+    }
+    // Else leave nulls; UI uses seat.holeHidden / opponentHidden for backs.
+  }
+  // Legacy HU reveal when per-seat holes are absent.
+  if (
+    normalized.revealed &&
+    normalized.opponentHoles &&
+    normalized.yourSeat !== null &&
+    inHandSeats.length === 2
+  ) {
+    const opp = inHandSeats.find((i) => i !== normalized.yourSeat);
+    if (opp !== undefined && !normalized.seats[opp].holes) {
+      state.hands[opp] = normalized.opponentHoles.map((c) => c);
     }
   }
 
@@ -386,7 +433,7 @@ function startOnline(roomCode: string) {
   state.online = null;
   state.street = "predeal";
   state.board = emptyBoard();
-  state.hands = emptyHands(2, HOLE_COUNT[state.gameType]);
+  state.hands = emptyHands(MAX_ONLINE_PLAYERS, HOLE_COUNT[state.gameType]);
   state.equities = null;
   state.outsSeat = null;
   state.picking = null;
@@ -724,22 +771,38 @@ function renderCard(
   `;
 }
 
+/** Face-down hole slots for a seat (protocol v5 per-seat, or legacy HU helper). */
+function seatHoleHidden(online: RoomView, seat: number): boolean[] | null {
+  const pub = online.seats[seat];
+  if (!pub?.filled || pub.inHand === false) return null;
+  if (pub.holeHidden?.some(Boolean)) return pub.holeHidden;
+  // Legacy HU: opponentHidden applies to the single other in-hand seat.
+  if (
+    online.yourSeat !== null &&
+    seat !== online.yourSeat &&
+    online.opponentHidden?.some(Boolean)
+  ) {
+    const others = online.seats
+      .map((s, i) =>
+        s.filled && s.inHand !== false && i !== online.yourSeat ? i : -1,
+      )
+      .filter((i) => i >= 0);
+    if (others.length === 1 && others[0] === seat) return online.opponentHidden;
+  }
+  return null;
+}
+
 /** Occupied hole/board slots for deal-animation diffs. */
 function currentDealKeys(): string[] {
   const keys: string[] = [];
   const online = state.mode === "online" ? state.online : null;
   for (let s = 0; s < state.hands.length; s++) {
-    const oppSeat =
-      online && online.yourSeat !== null ? 1 - online.yourSeat : -1;
-    const showBacks =
-      online &&
-      s === oppSeat &&
-      !online.revealed &&
-      online.opponentHidden.some(Boolean);
+    const hidden = online ? seatHoleHidden(online, s) : null;
+    const showBacks = Boolean(online && !online.revealed && hidden?.some(Boolean));
     for (let slot = 0; slot < state.hands[s].length; slot++) {
       const filled =
         state.hands[s][slot] !== null ||
-        Boolean(showBacks && online?.opponentHidden[slot]);
+        Boolean(showBacks && hidden?.[slot]);
       if (filled) keys.push(`h-${s}-${slot}`);
     }
   }
@@ -756,10 +819,14 @@ function seatStyle(index: number, total: number): string {
   return `left:${left.toFixed(2)}%;top:${top.toFixed(2)}%`;
 }
 
-/** Online: always put hero on the bottom rail and villain on top. */
-function onlineLayoutIndex(seat: number, yourSeat: number | null): number {
-  if (yourSeat === null) return seat;
-  return seat === yourSeat ? 0 : 1;
+/** Online: rotate so hero sits at the bottom rail (layout index 0). */
+function onlineLayoutIndex(
+  seat: number,
+  yourSeat: number | null,
+  total: number,
+): number {
+  if (yourSeat === null || total <= 0) return seat;
+  return (seat - yourSeat + total) % total;
 }
 
 function leadingEquity(): number {
@@ -832,7 +899,7 @@ function betSizePresets(
 function renderBettingBar(online: RoomView): string {
   if (!online.bettingOpen && !online.canAct) return "";
   if (!online.canAct) {
-    return `<div class="bet-bar bet-bar--wait"><span>Waiting for opponent…</span></div>`;
+    return `<div class="bet-bar bet-bar--wait"><span>Waiting for action…</span></div>`;
   }
   const callLabel = online.canCheck
     ? "Check"
@@ -868,16 +935,11 @@ function renderBettingBar(online: RoomView): string {
 function personalizeHistoryLine(line: string, yourSeat: number | null): string {
   if (yourSeat === null) return line;
   const yours = `P${yourSeat + 1}`;
-  const opp = `P${(1 - yourSeat) + 1}`; // seats 0/1 → P1/P2
   return line
     .split(`${yours} wins`)
     .join("You win")
-    .split(`${opp} wins`)
-    .join("Opp wins")
     .split(yours)
-    .join("You")
-    .split(opp)
-    .join("Opp");
+    .join("You");
 }
 
 /** Per-viewer tone: your win → green, your loss → red, chop → muted. */
@@ -888,9 +950,8 @@ function historyLineTone(
   if (/\bChop\b/i.test(line)) return "chop";
   if (yourSeat === null) return "neutral";
   const yours = `P${yourSeat + 1}`;
-  const opp = `P${(1 - yourSeat) + 1}`;
-  if (line.includes(`${yours} wins`)) return "win";
-  if (line.includes(`${opp} wins`)) return "loss";
+  if (line.includes(`${yours} wins`) || line.includes("You win")) return "win";
+  if (/\bP\d+ wins\b/.test(line)) return "loss";
   return "neutral";
 }
 
@@ -1087,7 +1148,13 @@ function renderTable(): string {
   const hostCanDeal = !online || online.youAreHost;
   const showEquityUi = state.mode === "solo" && state.showEquity;
   const streetReady = !online || online.bettingComplete;
-  const freshDealKeys = new Set(newDealKeys(currentDealKeys()));
+  // Keep slots pending while a fly-in is in flight so a re-render does not
+  // flash the face early (which then "re-flips" when the ghost lands).
+  const dealSlotKeys = currentDealKeys();
+  const freshDealKeys = new Set([
+    ...newDealKeys(dealSlotKeys),
+    ...dealSlotKeys.filter((k) => isDealKeyAnimating(k)),
+  ]);
 
   const seats = state.hands
     .map((hand, i) => {
@@ -1107,13 +1174,22 @@ function renderTable(): string {
         .filter(Boolean)
         .join(" ");
       const isYou = online?.yourSeat === i;
-      const oppSeat = online && online.yourSeat !== null ? 1 - online.yourSeat : -1;
-      const showBacks =
-        online &&
-        i === oppSeat &&
-        !online.revealed &&
-        online.opponentHidden.some(Boolean);
       const seatInfo = online?.seats[i];
+      const emptyOnline = Boolean(online && seatInfo && !seatInfo.filled);
+      const sittingOut = Boolean(
+        online &&
+          seatInfo?.filled &&
+          seatInfo.inHand === false &&
+          online.street !== "predeal",
+      );
+      const hidden = online ? seatHoleHidden(online, i) : null;
+      const showBacks = Boolean(
+        online &&
+          !isYou &&
+          !sittingOut &&
+          !online.revealed &&
+          hidden?.some(Boolean),
+      );
       const roleBadges = seatInfo
         ? [
             seatInfo.isButton
@@ -1130,41 +1206,66 @@ function renderTable(): string {
             .join("")
         : "";
       const chipsHtml =
-        seatInfo && typeof seatInfo.chips === "number"
+        seatInfo &&
+        seatInfo.filled &&
+        !sittingOut &&
+        typeof seatInfo.chips === "number"
           ? `<div class="seat__chips">${seatInfo.chips.toLocaleString()} chips${
               seatInfo.bet > 0 ? ` · bet ${seatInfo.bet}` : ""
             }${folded ? " · folded" : ""}</div>`
-          : "";
+          : sittingOut && seatInfo
+            ? `<div class="seat__chips">${seatInfo.chips.toLocaleString()} chips · sitting out</div>`
+            : "";
 
       const layoutIndex =
         online && online.yourSeat !== null
-          ? onlineLayoutIndex(i, online.yourSeat)
+          ? onlineLayoutIndex(i, online.yourSeat, state.playerCount)
           : i;
 
+      const seatClassFull = [
+        seatClass,
+        emptyOnline ? "seat--empty" : "",
+        sittingOut ? "seat--sitting-out" : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+
       return `
-        <div class="${seatClass}" style="${seatStyle(layoutIndex, state.playerCount)}" data-seat="${i}">
+        <div class="${seatClassFull}" style="${seatStyle(layoutIndex, state.playerCount)}" data-seat="${i}">
           ${winner ? `<div class="seat__winner">Winner</div>` : ""}
           ${roleBadges ? `<div class="seat__badges">${roleBadges}</div>` : ""}
           <div class="seat__cards">
-            ${hand
-              .map((c, slot) => {
-                const dealKey = `h-${i}-${slot}`;
-                const faceDown = Boolean(
-                  showBacks && online?.opponentHidden[slot],
-                );
-                const filled = c !== null || faceDown;
-                return renderCard(c, {
-                  pickPlayer: state.mode === "solo" ? i : undefined,
-                  pickSlot: state.mode === "solo" ? slot : undefined,
-                  faceDown,
-                  dealKey: filled ? dealKey : undefined,
-                  pendingDeal: filled && freshDealKeys.has(dealKey),
-                });
-              })
-              .join("")}
+            ${
+              emptyOnline || sittingOut
+                ? ""
+                : hand
+                    .map((c, slot) => {
+                      const dealKey = `h-${i}-${slot}`;
+                      const faceDown = Boolean(showBacks && hidden?.[slot]);
+                      const filled = c !== null || faceDown;
+                      return renderCard(c, {
+                        pickPlayer: state.mode === "solo" ? i : undefined,
+                        pickSlot: state.mode === "solo" ? slot : undefined,
+                        faceDown,
+                        dealKey: filled ? dealKey : undefined,
+                        pendingDeal: filled && freshDealKeys.has(dealKey),
+                      });
+                    })
+                    .join("")
+            }
           </div>
-          <div class="seat__label">${isYou ? "You" : `P${i + 1}`}${
-            online?.seats[i]?.connected === false ? " (away)" : ""
+          <div class="seat__label">${
+            emptyOnline
+              ? "Empty"
+              : isYou
+                ? "You"
+                : `P${i + 1}`
+          }${
+            sittingOut
+              ? " (out)"
+              : !emptyOnline && online?.seats[i]?.connected === false
+                ? " (away)"
+                : ""
           }</div>
           ${chipsHtml}
           ${
@@ -1205,7 +1306,9 @@ function renderTable(): string {
       ? true
       : Boolean(
           online &&
-            online.seats.every((s) => s.filled) &&
+            (online.seatedCount ??
+              online.seats.filter((s) => s.filled).length) >=
+              MIN_ONLINE_PLAYERS &&
             (online.street === "predeal" ||
               online.handOver ||
               !state.onlineSupportsBetting),
@@ -1216,11 +1319,14 @@ function renderTable(): string {
   const sidebarsOpen = outsSidebarOpen || historySidebarOpen;
 
   const roomCode = state.roomCode || online?.roomId || "";
+  const onlineSeated =
+    online?.seatedCount ?? online?.seats.filter((s) => s.filled).length ?? 0;
+  const onlineCap = online?.maxSeats ?? MAX_ONLINE_PLAYERS;
   const meta =
     state.mode === "online"
       ? `${gameLabel(state.gameType)} · ${
           online ? (online.youAreHost ? "Host" : "Guest") : "Connecting…"
-        }${
+        } · ${onlineSeated}/${onlineCap}${
           online
             ? ` · Blinds ${online.smallBlind}/${online.bigBlind}`
             : ""
@@ -1410,6 +1516,8 @@ function render() {
   if (state.screen === "table") {
     rememberDealKeys(dealKeys);
     if (incoming.length) {
+      // Mark before the double-rAF gap so intervening renders keep cards hidden.
+      markDealKeysAnimating(incoming);
       // Double-rAF so layout is settled before measuring deck → seat paths.
       requestAnimationFrame(() => {
         requestAnimationFrame(() => runDealAnimations(incoming));

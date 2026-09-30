@@ -44,8 +44,9 @@ Copy the printed host (e.g. `pokerflipper.<you>.workers.dev`) into Vercel as `VI
 ## Layout
 
 ```
-src/            # Vite UI + solo engine
-party/server.ts # Cloudflare Workers room (shuffle + deal)
-shared/         # Client/server message types
-wrangler.jsonc  # Workers / Durable Object config
+src/              # Vite UI + solo engine
+party/server.ts   # Thin PartyServer / Workers transport
+party/room/       # PokerTable engine (seating, blinds, betting, deal)
+shared/           # Client/server protocol (multi-seat rooms)
+wrangler.jsonc    # Workers / Durable Object config
 ```

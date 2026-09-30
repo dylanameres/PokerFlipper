@@ -12,8 +12,16 @@ export const BIG_BLIND = 50;
 /** Minimum open / raise size (matches the big blind). */
 export const MIN_BET = BIG_BLIND;
 
-/** Bump when the room server wire format changes in a breaking/feature way. */
-export const ROOM_PROTOCOL = 4;
+/**
+ * Bump when the room server wire format changes in a breaking/feature way.
+ * 5 = multi-seat rooms (per-seat hole privacy, flexible seating).
+ */
+export const ROOM_PROTOCOL = 5;
+
+/** Max seats in an online room (Hold'em-friendly). */
+export const MAX_ONLINE_PLAYERS = 6;
+/** Host may deal once this many players are seated. */
+export const MIN_ONLINE_PLAYERS = 2;
 
 export type ClientMessage =
   | { type: "hello"; gameType: GameType }
@@ -32,15 +40,30 @@ export interface SeatPublic {
   chips: number;
   bet: number;
   folded: boolean;
+  /**
+   * True when this seat was dealt into the current hand.
+   * False for empty chairs and players who joined mid-hand (sitting out).
+   */
+  inHand?: boolean;
   /** Dealer button (heads-up: also the big blind). */
   isButton: boolean;
   isSmallBlind: boolean;
   isBigBlind: boolean;
+  /**
+   * For seats that aren't you: true per hole slot when a face-down card is present.
+   * Empty / unused seats omit this.
+   */
+  holeHidden?: boolean[];
+  /**
+   * Hole cards revealed at showdown (or your own seat is always in `yourHoles`).
+   * Null/omitted while hidden.
+   */
+  holes?: WireCard[] | null;
 }
 
 /**
  * Personalized view for one connection.
- * Opponent hole cards are "hidden" until showdown — never sent as real values early.
+ * Other players' hole cards stay hidden until showdown.
  */
 export interface RoomView {
   type: "state";
@@ -52,12 +75,21 @@ export interface RoomView {
   yourSeat: number | null;
   youAreHost: boolean;
   seats: SeatPublic[];
+  /** Table capacity (always MAX_ONLINE_PLAYERS on current servers). */
+  maxSeats?: number;
+  /** How many seats currently have a player. */
+  seatedCount?: number;
   board: WireCard[];
   yourHoles: WireCard[];
-  /** Same length as hole count; true = face-down card present. */
-  opponentHidden: boolean[];
-  /** Filled only after showdown (river dealt). */
-  opponentHoles: WireCard[] | null;
+  /**
+   * @deprecated protocol &lt; 5 HU helper — prefer `seats[i].holeHidden`.
+   * Still filled when exactly one other player is seated.
+   */
+  opponentHidden?: boolean[];
+  /**
+   * @deprecated protocol &lt; 5 HU helper — prefer `seats[i].holes` at reveal.
+   */
+  opponentHoles?: WireCard[] | null;
   revealed: boolean;
   status: string;
   pot: number;
@@ -75,7 +107,7 @@ export interface RoomView {
   /** Betting finished; host may deal the next street (or hand is over). */
   bettingComplete: boolean;
   handOver: boolean;
-  /** Empty when no winner yet; one seat on win; both on chop. */
+  /** Empty when no winner yet; one or more seats on win/chop. */
   winnerSeats: number[];
   actionSeat: number | null;
   /** Completed-hand summaries (newest last): winner and pot. */
@@ -88,5 +120,3 @@ export const HOLE_COUNT: Record<GameType, number> = {
   holdem: 2,
   omaha: 4,
 };
-
-export const MAX_ONLINE_PLAYERS = 2;
