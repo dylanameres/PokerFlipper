@@ -14,9 +14,9 @@ export const MIN_BET = BIG_BLIND;
 
 /**
  * Bump when the room server wire format changes in a breaking/feature way.
- * 5 = multi-seat rooms (per-seat hole privacy, flexible seating).
+ * 6 = side pots + browser playerId seat reclaim.
  */
-export const ROOM_PROTOCOL = 5;
+export const ROOM_PROTOCOL = 6;
 
 /** Max seats in an online room (Hold'em-friendly). */
 export const MAX_ONLINE_PLAYERS = 6;
@@ -24,7 +24,7 @@ export const MAX_ONLINE_PLAYERS = 6;
 export const MIN_ONLINE_PLAYERS = 2;
 
 export type ClientMessage =
-  | { type: "hello"; gameType: GameType }
+  | { type: "hello"; gameType: GameType; playerId?: string }
   | { type: "deal_hands" }
   | { type: "deal_flop" }
   | { type: "deal_turn" }
@@ -61,6 +61,13 @@ export interface SeatPublic {
   holes?: WireCard[] | null;
 }
 
+/** One pot layer at showdown (main or side). */
+export interface PotPublic {
+  amount: number;
+  /** Seat indices eligible to win this layer. */
+  eligible: number[];
+}
+
 /**
  * Personalized view for one connection.
  * Other players' hole cards stay hidden until showdown.
@@ -77,7 +84,7 @@ export interface RoomView {
   seats: SeatPublic[];
   /** Table capacity (always MAX_ONLINE_PLAYERS on current servers). */
   maxSeats?: number;
-  /** How many seats currently have a player. */
+  /** How many seats currently have a player (including disconnected reserves). */
   seatedCount?: number;
   board: WireCard[];
   yourHoles: WireCard[];
@@ -93,6 +100,8 @@ export interface RoomView {
   revealed: boolean;
   status: string;
   pot: number;
+  /** Side-pot breakdown when an all-in created layers (omitted when single pot). */
+  pots?: PotPublic[];
   smallBlind: number;
   bigBlind: number;
   buttonSeat: number | null;

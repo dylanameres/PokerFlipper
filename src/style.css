@@ -828,6 +828,14 @@ html.large-cards .table-deck__card {
   font-variant-numeric: tabular-nums;
 }
 
+.pot__sides {
+  margin-top: 2px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: rgba(255, 226, 154, 0.8);
+  font-variant-numeric: tabular-nums;
+}
+
 .pot[data-tone="red"] {
   border-color: rgba(255, 120, 120, 0.45);
 }
