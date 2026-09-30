@@ -45,6 +45,9 @@ export class PokerTable {
   winnerSeats: number[] = [];
   /** Dealer button (heads-up: also BB). Rotates left among filled seats. */
   buttonSeat = 0;
+  /** SB/BB seats fixed at deal time (do not recompute after disconnects). */
+  private sbSeatFixed: number | null = null;
+  private bbSeatFixed: number | null = null;
   private handsDealt = 0;
   private seatsReady = false;
   private history: string[] = [];
@@ -59,29 +62,46 @@ export class PokerTable {
 
   ensureSeats() {
     if (this.seatsReady) return;
-    this.seats = Array.from({ length: MAX_ONLINE_PLAYERS }, () => ({
+    this.seats = Array.from({ length: MAX_ONLINE_PLAYERS }, () =>
+      this.freshSeat(),
+    );
+    this.seatsReady = true;
+  }
+
+  private freshSeat(): RoomSeat {
+    return {
       connectionId: null,
       holes: emptyHoles(this.holes()),
       chips: STARTING_CHIPS,
       betStreet: 0,
       folded: false,
       acted: false,
-    }));
-    this.seatsReady = true;
+      inHand: false,
+    };
   }
 
   seatedCount(): number {
-    return this.seats.filter((s) => s.connectionId !== null).length;
+    let n = 0;
+    for (const s of this.seats) {
+      if (s.connectionId !== null) n += 1;
+    }
+    return n;
   }
 
   filledSeats(): number[] {
-    return this.seats
-      .map((s, i) => (s.connectionId !== null ? i : -1))
-      .filter((i) => i >= 0);
+    const out: number[] = [];
+    for (let i = 0; i < this.seats.length; i++) {
+      if (this.seats[i].connectionId !== null) out.push(i);
+    }
+    return out;
   }
 
   readyToDeal(): boolean {
     return this.seatedCount() >= MIN_ONLINE_PLAYERS;
+  }
+
+  private handInProgress(): boolean {
+    return this.street !== "predeal" && !this.handOver;
   }
 
   /** Seat a joining connection into the first empty chair. */
@@ -100,22 +120,55 @@ export class PokerTable {
       };
     }
 
-    this.seats[seatIndex].connectionId = connectionId;
+    // Wipe prior occupant state — never inherit holes/stack/hand flags.
+    const seat = this.seats[seatIndex];
+    seat.connectionId = connectionId;
+    seat.holes = emptyHoles(this.holes());
+    seat.chips = STARTING_CHIPS;
+    seat.betStreet = 0;
+    seat.folded = false;
+    seat.acted = false;
+    // Late joiners sit out until the next deal.
+    seat.inHand = false;
     if (!this.hostId) this.hostId = connectionId;
     return { ok: true, seat: seatIndex };
   }
 
-  /** Clear a connection from its seat; promote a new host if needed. */
+  /**
+   * Clear a connection from its seat; promote a new host if needed.
+   * Mid-hand disconnects are treated like a fold so action/pot can resolve.
+   */
   unseatPlayer(connectionId: string) {
     this.ensureSeats();
-    for (const seat of this.seats) {
-      if (seat.connectionId === connectionId) {
-        seat.connectionId = null;
-      }
+    const seatIndex = this.seatIndexOf(connectionId);
+    if (seatIndex < 0) {
+      if (this.hostId === connectionId) this.hostId = null;
+      return;
     }
+
+    const seat = this.seats[seatIndex];
+    const wasLive =
+      this.handInProgress() && seat.inHand && !seat.folded;
+
+    // Scrub private cards before dropping the connection id.
+    seat.holes = emptyHoles(this.holes());
+    seat.connectionId = null;
+    seat.inHand = false;
+    seat.betStreet = 0;
+    seat.folded = false;
+    seat.acted = false;
+    seat.chips = STARTING_CHIPS;
+
     if (this.hostId === connectionId) {
       const next = this.seats.find((s) => s.connectionId);
       this.hostId = next?.connectionId ?? null;
+    }
+
+    if (wasLive) {
+      // Seat is already out of activeSeats; resolve like a fold.
+      if (this.afterAction()) {
+        // Caller (PartyRoom) broadcasts; runout path notifies itself.
+      }
     }
   }
 
@@ -160,15 +213,18 @@ export class PokerTable {
         this.currentBet = 0;
         this.handOver = false;
         this.winnerSeats = [];
+        this.sbSeatFixed = null;
+        this.bbSeatFixed = null;
         this.runoutGen += 1;
         const n = this.holes();
+        const filled = this.filledSeats();
         for (const seat of this.seats) {
           seat.holes = emptyHoles(n);
           seat.folded = false;
           seat.betStreet = 0;
           seat.acted = false;
+          seat.inHand = seat.connectionId !== null;
         }
-        const filled = this.filledSeats();
         for (let h = 0; h < n; h++) {
           for (const p of filled) {
             assignHole(this.seats[p].holes, h, this.draw(1)[0]);
@@ -281,23 +337,26 @@ export class PokerTable {
       this.handOver && this.street === "river" && this.board[4] !== null;
     const n = this.holes();
     const filled = this.filledSeats();
+    const seated = filled.length;
+    const tableLive = this.street !== "predeal";
 
     let yourHoles: WireCard[] = emptyHoles(n);
     if (yourSeat >= 0) {
       yourHoles = this.seats[yourSeat].holes.slice();
     }
 
-    // Deprecated HU helpers — filled when exactly one other player is seated.
+    // Deprecated HU helpers — only when exactly one other *in-hand* opponent.
     let opponentHidden: boolean[] | undefined;
     let opponentHoles: WireCard[] | null | undefined;
-    const others = filled.filter((i) => i !== yourSeat);
-    if (yourSeat >= 0 && others.length === 1) {
-      const opp = this.seats[others[0]];
-      const oppDealt = opp.holes.every((c) => c !== null);
+    const othersInHand = filled.filter(
+      (i) => i !== yourSeat && this.seats[i].inHand,
+    );
+    if (yourSeat >= 0 && othersInHand.length === 1) {
+      const opp = this.seats[othersInHand[0]];
       if (doReveal) {
         opponentHoles = opp.holes.slice();
         opponentHidden = Array.from({ length: n }, () => false);
-      } else if (oppDealt || this.street !== "predeal") {
+      } else if (opp.inHand && this.street !== "predeal") {
         opponentHidden = opp.holes.map((c) => c !== null);
         opponentHoles = null;
       } else {
@@ -306,12 +365,12 @@ export class PokerTable {
       }
     }
 
-    const toCall =
-      yourSeat >= 0
-        ? Math.max(0, this.currentBet - this.seats[yourSeat].betStreet)
-        : 0;
     const your = yourSeat >= 0 ? this.seats[yourSeat] : null;
-    const maxBet = your ? your.betStreet + your.chips : 0;
+    const toCall =
+      your && your.inHand
+        ? Math.max(0, this.currentBet - your.betStreet)
+        : 0;
+    const maxBet = your && your.inHand ? your.betStreet + your.chips : 0;
     const minBet =
       this.currentBet === 0
         ? Math.min(MIN_BET, maxBet || MIN_BET)
@@ -324,17 +383,18 @@ export class PokerTable {
       yourSeat >= 0 &&
       yourSeat === this.actionSeat &&
       !this.handOver &&
+      Boolean(your?.inHand) &&
       (your?.chips ?? 0) > 0;
+    const canBetSeats = this.seatsThatCanBet();
     const bettingComplete =
       !this.bettingOpen &&
       !this.handOver &&
       this.street !== "predeal" &&
       this.street !== "river" &&
       this.bettingRoundComplete() &&
-      this.seatsThatCanBet().length >= 2;
+      canBetSeats.length >= 2;
 
-    const waiting = !this.readyToDeal();
-    const seated = this.seatedCount();
+    const waiting = seated < MIN_ONLINE_PLAYERS;
     let status: string;
     if (waiting) {
       status = roomId
@@ -345,6 +405,12 @@ export class PokerTable {
         connectionId === this.hostId
           ? `${seated} players ready. Deal hands when you want.`
           : "Waiting for host to deal.";
+    } else if (
+      yourSeat >= 0 &&
+      !this.seats[yourSeat].inHand &&
+      !this.handOver
+    ) {
+      status = "Sitting out — wait for the next hand.";
     } else if (this.handOver) {
       if (this.winnerSeats.length >= 2) status = "Chop — pot split.";
       else if (this.winnerSeats.length === 1) {
@@ -364,7 +430,7 @@ export class PokerTable {
     } else if (
       !this.bettingOpen &&
       !this.handOver &&
-      this.seatsThatCanBet().length < 2 &&
+      canBetSeats.length < 2 &&
       this.street !== "predeal"
     ) {
       status = "All-in — running out the board…";
@@ -374,9 +440,8 @@ export class PokerTable {
       status = "Playing…";
     }
 
-    const inHand = this.street !== "predeal";
-    const sb = this.readyToDeal() ? this.smallBlindSeat() : -1;
-    const bb = this.readyToDeal() ? this.bigBlindSeat() : -1;
+    const sb = tableLive ? (this.sbSeatFixed ?? -1) : -1;
+    const bb = tableLive ? (this.bbSeatFixed ?? -1) : -1;
 
     const seats: SeatPublic[] = this.seats.map((s, i) => {
       const filledSeat = s.connectionId !== null;
@@ -386,23 +451,21 @@ export class PokerTable {
         chips: s.chips,
         bet: s.betStreet,
         folded: s.folded,
-        isButton: inHand && i === this.buttonSeat,
-        isSmallBlind: inHand && i === sb,
-        isBigBlind: inHand && i === bb,
+        inHand: filledSeat ? s.inHand : false,
+        // Blind/button markers use deal-time seats; never re-derive after leaves.
+        isButton: tableLive && filledSeat && i === this.buttonSeat,
+        isSmallBlind: tableLive && filledSeat && i === sb,
+        isBigBlind: tableLive && filledSeat && i === bb,
       };
-      if (!filledSeat) return pub;
+      if (!filledSeat || !s.inHand) return pub;
 
-      if (i === yourSeat) {
-        pub.holes = s.holes.slice();
-        return pub;
-      }
+      // Own holes live in `yourHoles` only — avoid duplicating on the wire.
+      if (i === yourSeat) return pub;
 
-      const hasCards =
-        s.holes.some((c) => c !== null) || this.street !== "predeal";
       if (doReveal) {
         pub.holes = s.holes.slice();
         pub.holeHidden = Array.from({ length: n }, () => false);
-      } else if (hasCards) {
+      } else {
         pub.holeHidden = s.holes.map((c) => c !== null);
       }
       return pub;
@@ -428,7 +491,7 @@ export class PokerTable {
       pot: this.pot,
       smallBlind: SMALL_BLIND,
       bigBlind: BIG_BLIND,
-      buttonSeat: inHand ? this.buttonSeat : null,
+      buttonSeat: tableLive ? this.buttonSeat : null,
       toCall,
       minBet,
       maxBet,
@@ -456,11 +519,14 @@ export class PokerTable {
     this.bettingOpen = false;
     this.handOver = false;
     this.winnerSeats = [];
+    this.sbSeatFixed = null;
+    this.bbSeatFixed = null;
     for (const seat of this.seats) {
       seat.holes = emptyHoles(this.holes());
       seat.betStreet = 0;
       seat.folded = false;
       seat.acted = false;
+      seat.inHand = false;
     }
   }
 
@@ -513,6 +579,8 @@ export class PokerTable {
   private postBlinds() {
     const sb = this.smallBlindSeat();
     const bb = this.bigBlindSeat();
+    this.sbSeatFixed = sb;
+    this.bbSeatFixed = bb;
     this.putChips(this.seats[sb], SMALL_BLIND);
     this.putChips(this.seats[bb], BIG_BLIND);
     this.currentBet = Math.max(
@@ -529,9 +597,12 @@ export class PokerTable {
   }
 
   private activeSeats(): number[] {
-    return this.seats
-      .map((s, i) => (s.connectionId && !s.folded ? i : -1))
-      .filter((i) => i >= 0);
+    const out: number[] = [];
+    for (let i = 0; i < this.seats.length; i++) {
+      const s = this.seats[i];
+      if (s.connectionId && s.inHand && !s.folded) out.push(i);
+    }
+    return out;
   }
 
   private seatIndexOf(connectionId: string): number {
@@ -552,12 +623,11 @@ export class PokerTable {
 
   /** First seat that can bet, walking left from `from` (exclusive). */
   private firstActiveLeftOf(from: number): number | null {
+    const canBet = new Set(this.seatsThatCanBet());
     for (let step = 1; step <= MAX_ONLINE_PLAYERS; step++) {
       const seat =
         (from - step + MAX_ONLINE_PLAYERS) % MAX_ONLINE_PLAYERS;
-      if (this.seatsThatCanBet().includes(seat)) {
-        return seat;
-      }
+      if (canBet.has(seat)) return seat;
     }
     return null;
   }
@@ -584,7 +654,8 @@ export class PokerTable {
       return;
     }
     this.bettingOpen = true;
-    this.actionSeat = this.firstActiveLeftOf(this.bigBlindSeat());
+    const bb = this.bbSeatFixed ?? this.bigBlindSeat();
+    this.actionSeat = this.firstActiveLeftOf(bb);
     if (this.actionSeat === null) {
       this.bettingOpen = false;
     }
@@ -711,15 +782,16 @@ export class PokerTable {
 
   /** Advance action left (same direction as blinds). */
   private advanceAction() {
-    const canBet = this.seatsThatCanBet();
-    if (canBet.length === 0 || this.actionSeat === null) {
+    const canBetList = this.seatsThatCanBet();
+    if (canBetList.length === 0 || this.actionSeat === null) {
       this.actionSeat = null;
       return;
     }
+    const canBet = new Set(canBetList);
     const start = this.actionSeat;
     for (let step = 1; step <= MAX_ONLINE_PLAYERS; step++) {
       const next = (start - step + MAX_ONLINE_PLAYERS) % MAX_ONLINE_PLAYERS;
-      if (!canBet.includes(next)) continue;
+      if (!canBet.has(next)) continue;
       const s = this.seats[next];
       const needsAction =
         !s.acted || (s.betStreet < this.currentBet && s.chips > 0);
@@ -788,6 +860,7 @@ export class PokerTable {
     }
     const seat = this.seatIndexOf(connectionId);
     if (seat < 0) throw new Error("You are not seated");
+    if (!this.seats[seat].inHand) throw new Error("Sitting out this hand");
     if (this.seats[seat].folded) throw new Error("You already folded");
     if (this.seats[seat].chips === 0) throw new Error("You are all-in");
     if (seat !== this.actionSeat) throw new Error("Not your turn");

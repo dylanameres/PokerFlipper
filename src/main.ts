@@ -254,6 +254,7 @@ function normalizeOnlineView(view: RoomView): RoomView {
     chips: typeof s.chips === "number" ? s.chips : 0,
     bet: typeof s.bet === "number" ? s.bet : 0,
     folded: Boolean(s.folded),
+    inHand: s.inHand !== undefined ? Boolean(s.inHand) : Boolean(s.filled),
     isButton: Boolean(s.isButton),
     isSmallBlind: Boolean(s.isSmallBlind),
     isBigBlind: Boolean(s.isBigBlind),
@@ -271,6 +272,7 @@ function normalizeOnlineView(view: RoomView): RoomView {
       chips: 0,
       bet: 0,
       folded: false,
+      inHand: false,
       isButton: false,
       isSmallBlind: false,
       isBigBlind: false,
@@ -367,28 +369,28 @@ function applyOnlineView(view: RoomView) {
   const holes = HOLE_COUNT[view.gameType];
   const seatCount = normalized.seats.length;
   state.hands = emptyHands(seatCount, holes);
+  const inHandSeats: number[] = [];
   for (let i = 0; i < seatCount; i++) {
     const seat = normalized.seats[i];
-    if (!seat.filled) {
-      state.hands[i] = emptyHands(1, holes)[0];
-      continue;
-    }
+    if (!seat.filled || seat.inHand === false) continue;
+    inHandSeats.push(i);
     if (normalized.yourSeat === i) {
       state.hands[i] = normalized.yourHoles.map((c) => c);
-      continue;
-    }
-    if (normalized.revealed && seat.holes) {
+    } else if (normalized.revealed && seat.holes) {
       state.hands[i] = seat.holes.map((c) => c);
-    } else if (
-      normalized.revealed &&
-      normalized.opponentHoles &&
-      // Legacy HU: only one other filled seat.
-      normalized.seats.filter((s) => s.filled).length === 2
-    ) {
-      state.hands[i] = normalized.opponentHoles.map((c) => c);
-    } else {
-      // Keep nulls; UI renders card-backs from seat.holeHidden / opponentHidden.
-      state.hands[i] = emptyHands(1, holes)[0];
+    }
+    // Else leave nulls; UI uses seat.holeHidden / opponentHidden for backs.
+  }
+  // Legacy HU reveal when per-seat holes are absent.
+  if (
+    normalized.revealed &&
+    normalized.opponentHoles &&
+    normalized.yourSeat !== null &&
+    inHandSeats.length === 2
+  ) {
+    const opp = inHandSeats.find((i) => i !== normalized.yourSeat);
+    if (opp !== undefined && !normalized.seats[opp].holes) {
+      state.hands[opp] = normalized.opponentHoles.map((c) => c);
     }
   }
 
@@ -770,15 +772,18 @@ function renderCard(
 /** Face-down hole slots for a seat (protocol v5 per-seat, or legacy HU helper). */
 function seatHoleHidden(online: RoomView, seat: number): boolean[] | null {
   const pub = online.seats[seat];
-  if (pub?.holeHidden?.some(Boolean)) return pub.holeHidden;
-  // Legacy HU: opponentHidden applies to the single other filled seat.
+  if (!pub?.filled || pub.inHand === false) return null;
+  if (pub.holeHidden?.some(Boolean)) return pub.holeHidden;
+  // Legacy HU: opponentHidden applies to the single other in-hand seat.
   if (
     online.yourSeat !== null &&
     seat !== online.yourSeat &&
     online.opponentHidden?.some(Boolean)
   ) {
     const others = online.seats
-      .map((s, i) => (s.filled && i !== online.yourSeat ? i : -1))
+      .map((s, i) =>
+        s.filled && s.inHand !== false && i !== online.yourSeat ? i : -1,
+      )
       .filter((i) => i >= 0);
     if (others.length === 1 && others[0] === seat) return online.opponentHidden;
   }
@@ -1163,9 +1168,19 @@ function renderTable(): string {
       const isYou = online?.yourSeat === i;
       const seatInfo = online?.seats[i];
       const emptyOnline = Boolean(online && seatInfo && !seatInfo.filled);
+      const sittingOut = Boolean(
+        online &&
+          seatInfo?.filled &&
+          seatInfo.inHand === false &&
+          online.street !== "predeal",
+      );
       const hidden = online ? seatHoleHidden(online, i) : null;
       const showBacks = Boolean(
-        online && !isYou && !online.revealed && hidden?.some(Boolean),
+        online &&
+          !isYou &&
+          !sittingOut &&
+          !online.revealed &&
+          hidden?.some(Boolean),
       );
       const roleBadges = seatInfo
         ? [
@@ -1183,11 +1198,16 @@ function renderTable(): string {
             .join("")
         : "";
       const chipsHtml =
-        seatInfo && seatInfo.filled && typeof seatInfo.chips === "number"
+        seatInfo &&
+        seatInfo.filled &&
+        !sittingOut &&
+        typeof seatInfo.chips === "number"
           ? `<div class="seat__chips">${seatInfo.chips.toLocaleString()} chips${
               seatInfo.bet > 0 ? ` · bet ${seatInfo.bet}` : ""
             }${folded ? " · folded" : ""}</div>`
-          : "";
+          : sittingOut && seatInfo
+            ? `<div class="seat__chips">${seatInfo.chips.toLocaleString()} chips · sitting out</div>`
+            : "";
 
       const layoutIndex =
         online && online.yourSeat !== null
@@ -1197,6 +1217,7 @@ function renderTable(): string {
       const seatClassFull = [
         seatClass,
         emptyOnline ? "seat--empty" : "",
+        sittingOut ? "seat--sitting-out" : "",
       ]
         .filter(Boolean)
         .join(" ");
@@ -1207,7 +1228,7 @@ function renderTable(): string {
           ${roleBadges ? `<div class="seat__badges">${roleBadges}</div>` : ""}
           <div class="seat__cards">
             ${
-              emptyOnline
+              emptyOnline || sittingOut
                 ? ""
                 : hand
                     .map((c, slot) => {
@@ -1232,9 +1253,11 @@ function renderTable(): string {
                 ? "You"
                 : `P${i + 1}`
           }${
-            !emptyOnline && online?.seats[i]?.connected === false
-              ? " (away)"
-              : ""
+            sittingOut
+              ? " (out)"
+              : !emptyOnline && online?.seats[i]?.connected === false
+                ? " (away)"
+                : ""
           }</div>
           ${chipsHtml}
           ${

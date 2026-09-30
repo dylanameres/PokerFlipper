@@ -149,4 +149,76 @@ describe("PokerTable multiplayer framework", () => {
     table.handle({ type: "call" }, ids[2]);
     expect(table.viewFor(ids[0], "3ACT").actionSeat).toBe(1); // BB last
   });
+
+  it("sits late joiners out of the current hand with a clean seat", () => {
+    const { table, ids } = seatedTable(2);
+    table.handle({ type: "deal_hands" }, ids[0]);
+    const holesBefore = table.viewFor(ids[0], "X").yourHoles.slice();
+
+    const joined = table.seatPlayer("late");
+    expect(joined.ok).toBe(true);
+    const late = table.viewFor("late", "X");
+    expect(late.seats[late.yourSeat!].inHand).toBe(false);
+    expect(late.yourHoles.every((c) => c === null)).toBe(true);
+    expect(late.canAct).toBe(false);
+    expect(late.status).toMatch(/sitting out/i);
+    // Host still has the same private holes (no reseat leak / reshuffle).
+    expect(table.viewFor(ids[0], "X").yourHoles).toEqual(holesBefore);
+    // Late joiner cannot act even if somehow to act.
+    expect(() => table.handle({ type: "call" }, "late")).toThrow(/sitting out/i);
+  });
+
+  it("awards the pot when the opponent disconnects mid-hand", () => {
+    const { table, ids } = seatedTable(2);
+    table.handle({ type: "deal_hands" }, ids[0]);
+    const before = table.viewFor(ids[0], "DC");
+    expect(before.handOver).toBe(false);
+    const hostChips = before.seats[0].chips;
+    const pot = before.pot;
+
+    table.unseatPlayer(ids[1]);
+    const after = table.viewFor(ids[0], "DC");
+    expect(after.handOver).toBe(true);
+    expect(after.winnerSeats).toEqual([0]);
+    expect(after.seats[0].chips).toBe(hostChips + pot);
+    expect(after.seats[1].filled).toBe(false);
+  });
+
+  it("does not leak vacated hole cards to the next occupant", () => {
+    const { table, ids } = seatedTable(3);
+    table.handle({ type: "deal_hands" }, ids[0]);
+    const victimHoles = table.viewFor(ids[2], "L").yourHoles.slice();
+    expect(victimHoles.every((c) => c !== null)).toBe(true);
+
+    // Seat 2 folds out via disconnect; hand continues with 2 players.
+    table.unseatPlayer(ids[2]);
+    expect(table.viewFor(ids[0], "L").seats[2].filled).toBe(false);
+
+    const joined = table.seatPlayer("newbie");
+    expect(joined.ok).toBe(true);
+    expect(joined.ok && joined.seat).toBe(2);
+    const newbie = table.viewFor("newbie", "L");
+    expect(newbie.yourHoles.every((c) => c === null)).toBe(true);
+    expect(newbie.yourHoles).not.toEqual(victimHoles);
+    expect(newbie.seats[2].inHand).toBe(false);
+    expect(newbie.seats[2].chips).toBe(STARTING_CHIPS);
+  });
+
+  it("keeps deal-time blind markers after a third player leaves", () => {
+    const { table, ids } = seatedTable(3);
+    table.handle({ type: "deal_hands" }, ids[0]);
+    // button 0, SB 2, BB 1 — remove UTG/button after they act? remove seat 0 before acting.
+    // Action is on 0; disconnect 0 → advance, blinds on 2/1 must not move.
+    const before = table.viewFor(ids[1], "BL");
+    expect(before.seats[2].isSmallBlind).toBe(true);
+    expect(before.seats[1].isBigBlind).toBe(true);
+
+    table.unseatPlayer(ids[0]);
+    const after = table.viewFor(ids[1], "BL");
+    expect(after.seats[1].isBigBlind).toBe(true);
+    expect(after.seats[2].isSmallBlind).toBe(true);
+    // Button seat emptied — marker not moved onto another player.
+    expect(after.seats[1].isButton).toBe(false);
+    expect(after.seats[2].isButton).toBe(false);
+  });
 });

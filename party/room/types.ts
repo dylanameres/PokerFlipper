@@ -8,6 +8,8 @@ export type RoomSeat = {
   betStreet: number;
   folded: boolean;
   acted: boolean;
+  /** Dealt into the current hand (false for empty seats and late joiners). */
+  inHand: boolean;
 };
 
 export type RoomConnection = { id: string };

@@ -40,6 +40,11 @@ export interface SeatPublic {
   chips: number;
   bet: number;
   folded: boolean;
+  /**
+   * True when this seat was dealt into the current hand.
+   * False for empty chairs and players who joined mid-hand (sitting out).
+   */
+  inHand?: boolean;
   /** Dealer button (heads-up: also the big blind). */
   isButton: boolean;
   isSmallBlind: boolean;

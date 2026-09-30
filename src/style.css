@@ -986,6 +986,14 @@ button.seat__marker--bet {
   font-style: italic;
 }
 
+.seat--sitting-out {
+  opacity: 0.55;
+}
+
+.seat--sitting-out .seat__label {
+  font-style: italic;
+}
+
 .seat--folded {
   opacity: 0.45;
 }
