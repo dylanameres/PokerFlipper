@@ -12,11 +12,30 @@ export type OnlineHandlers = {
   onClose: () => void;
 };
 
+const PLAYER_ID_KEY = "pokerflipper-player-id";
+
 let socket: PartySocket | null = null;
 let connectTimer: ReturnType<typeof setTimeout> | null = null;
 
 function partyHost(): string {
   return import.meta.env.VITE_PARTYKIT_HOST || "127.0.0.1:1999";
+}
+
+/** Stable per-browser id used to reclaim the same seat after reconnect. */
+export function getBrowserPlayerId(): string {
+  try {
+    const existing = localStorage.getItem(PLAYER_ID_KEY);
+    if (existing && existing.length >= 8) return existing;
+    const id =
+      typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `p_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+    localStorage.setItem(PLAYER_ID_KEY, id);
+    return id;
+  } catch {
+    // Private mode / blocked storage — ephemeral id for this page lifetime.
+    return `ephemeral_${Math.random().toString(36).slice(2)}`;
+  }
 }
 
 function clearConnectTimer() {
@@ -45,6 +64,7 @@ export function connectOnline(
   disconnectOnline();
 
   const host = partyHost();
+  const playerId = getBrowserPlayerId();
   let opened = false;
   let gotView = false;
 
@@ -52,6 +72,7 @@ export function connectOnline(
     host,
     party: "poker-room",
     room: roomCode.toUpperCase(),
+    query: { playerId },
     maxRetries: 6,
   });
 
@@ -65,7 +86,7 @@ export function connectOnline(
 
   socket.addEventListener("open", () => {
     opened = true;
-    sendOnline({ type: "hello", gameType });
+    sendOnline({ type: "hello", gameType, playerId });
   });
 
   socket.addEventListener("message", (event) => {

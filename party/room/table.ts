@@ -9,6 +9,7 @@ import {
   STARTING_CHIPS,
   type ClientMessage,
   type GameType,
+  type PotPublic,
   type RoomView,
   type SeatPublic,
   type Street,
@@ -22,6 +23,7 @@ import {
   fullDeck,
   secureShuffle,
 } from "./deck";
+import { buildSidePots, splitPotAmount } from "./pots";
 import type { RoomSeat } from "./types";
 
 export type TableNotify = () => void;
@@ -36,7 +38,8 @@ export class PokerTable {
   deck: number[] = [];
   board: WireCard[] = emptyBoard();
   seats: RoomSeat[] = [];
-  hostId: string | null = null;
+  /** Host identity survives reconnects (connection ids change). */
+  hostPlayerId: string | null = null;
   pot = 0;
   currentBet = 0;
   actionSeat: number | null = null;
@@ -71,19 +74,31 @@ export class PokerTable {
   private freshSeat(): RoomSeat {
     return {
       connectionId: null,
+      playerId: null,
       holes: emptyHoles(this.holes()),
       chips: STARTING_CHIPS,
       betStreet: 0,
+      contributed: 0,
       folded: false,
       acted: false,
       inHand: false,
     };
   }
 
+  /** Connected players (live sockets). */
   seatedCount(): number {
     let n = 0;
     for (const s of this.seats) {
       if (s.connectionId !== null) n += 1;
+    }
+    return n;
+  }
+
+  /** Occupied chairs including disconnected reserves. */
+  occupiedCount(): number {
+    let n = 0;
+    for (const s of this.seats) {
+      if (s.playerId !== null) n += 1;
     }
     return n;
   }
@@ -104,15 +119,54 @@ export class PokerTable {
     return this.street !== "predeal" && !this.handOver;
   }
 
-  /** Seat a joining connection into the first empty chair. */
+  private isHostConnection(connectionId: string): boolean {
+    const seat = this.seats[this.seatIndexOf(connectionId)];
+    return Boolean(
+      seat?.playerId && this.hostPlayerId && seat.playerId === this.hostPlayerId,
+    );
+  }
+
+  /**
+   * Seat or reclaim by browser `playerId`.
+   * Reclaim keeps chips / hand state; new joins sit out a live hand.
+   */
   seatPlayer(
     connectionId: string,
-  ): { ok: true; seat: number } | { ok: false; message: string } {
+    playerId: string,
+  ): { ok: true; seat: number; reclaimed: boolean } | { ok: false; message: string } {
     this.ensureSeats();
-    const existing = this.seatIndexOf(connectionId);
-    if (existing >= 0) return { ok: true, seat: existing };
+    const pid = playerId.trim();
+    if (!pid) {
+      return { ok: false, message: "Missing player id" };
+    }
 
-    const seatIndex = this.seats.findIndex((s) => s.connectionId === null);
+    const byConn = this.seatIndexOf(connectionId);
+    if (byConn >= 0) {
+      this.seats[byConn].playerId = pid;
+      if (!this.hostPlayerId) this.hostPlayerId = pid;
+      return { ok: true, seat: byConn, reclaimed: true };
+    }
+
+    const reclaim = this.seats.findIndex((s) => s.playerId === pid);
+    if (reclaim >= 0) {
+      this.seats[reclaim].connectionId = connectionId;
+      if (!this.hostPlayerId) this.hostPlayerId = pid;
+      return { ok: true, seat: reclaim, reclaimed: true };
+    }
+
+    let seatIndex = this.seats.findIndex((s) => s.playerId === null);
+    if (seatIndex === -1) {
+      // Recycle a disconnected reserve that is done for this hand.
+      seatIndex = this.seats.findIndex(
+        (s) =>
+          s.playerId !== null &&
+          s.connectionId === null &&
+          (!s.inHand ||
+            s.folded ||
+            this.handOver ||
+            this.street === "predeal"),
+      );
+    }
     if (seatIndex === -1) {
       return {
         ok: false,
@@ -120,65 +174,65 @@ export class PokerTable {
       };
     }
 
-    // Wipe prior occupant state — never inherit holes/stack/hand flags.
     const seat = this.seats[seatIndex];
+    seat.playerId = pid;
     seat.connectionId = connectionId;
     seat.holes = emptyHoles(this.holes());
     seat.chips = STARTING_CHIPS;
     seat.betStreet = 0;
+    seat.contributed = 0;
     seat.folded = false;
     seat.acted = false;
-    // Late joiners sit out until the next deal.
     seat.inHand = false;
-    if (!this.hostId) this.hostId = connectionId;
-    return { ok: true, seat: seatIndex };
+    if (!this.hostPlayerId) this.hostPlayerId = pid;
+    return { ok: true, seat: seatIndex, reclaimed: false };
   }
 
   /**
-   * Clear a connection from its seat; promote a new host if needed.
-   * Mid-hand disconnects are treated like a fold so action/pot can resolve.
+   * Drop a live connection but keep the seat reserved for `playerId` reclaim.
+   * Players who can still bet are auto-folded so the hand cannot stall;
+   * all-in players stay in for showdown.
    */
   unseatPlayer(connectionId: string) {
     this.ensureSeats();
     const seatIndex = this.seatIndexOf(connectionId);
-    if (seatIndex < 0) {
-      if (this.hostId === connectionId) this.hostId = null;
-      return;
-    }
+    if (seatIndex < 0) return;
 
     const seat = this.seats[seatIndex];
-    const wasLive =
-      this.handInProgress() && seat.inHand && !seat.folded;
+    const needsFold =
+      this.handInProgress() &&
+      seat.inHand &&
+      !seat.folded &&
+      seat.chips > 0;
 
-    // Scrub private cards before dropping the connection id.
-    seat.holes = emptyHoles(this.holes());
     seat.connectionId = null;
-    seat.inHand = false;
-    seat.betStreet = 0;
-    seat.folded = false;
-    seat.acted = false;
-    seat.chips = STARTING_CHIPS;
 
-    if (this.hostId === connectionId) {
-      const next = this.seats.find((s) => s.connectionId);
-      this.hostId = next?.connectionId ?? null;
+    if (seat.playerId && seat.playerId === this.hostPlayerId) {
+      const next = this.seats.find((s) => s.connectionId && s.playerId);
+      this.hostPlayerId = next?.playerId ?? this.hostPlayerId;
     }
 
-    if (wasLive) {
-      // Seat is already out of activeSeats; resolve like a fold.
+    if (needsFold) {
+      seat.folded = true;
+      seat.acted = true;
+      seat.holes = emptyHoles(this.holes());
       if (this.afterAction()) {
-        // Caller (PartyRoom) broadcasts; runout path notifies itself.
+        // Caller broadcasts; runout notifies itself.
       }
     }
   }
 
   handle(msg: ClientMessage, connectionId: string) {
     this.ensureSeats();
-    const isHost = connectionId === this.hostId;
+    const isHost = this.isHostConnection(connectionId);
 
     switch (msg.type) {
       case "hello": {
-        if (isHost && this.street === "predeal") {
+        if (msg.playerId) {
+          const claimed = this.seatPlayer(connectionId, msg.playerId);
+          if (!claimed.ok) throw new Error(claimed.message);
+        }
+        if (this.isHostConnection(connectionId) && this.street === "predeal") {
           this.gameType = msg.gameType;
           for (const seat of this.seats) {
             if (seat.holes.length !== this.holes()) {
@@ -197,7 +251,7 @@ export class PokerTable {
         if (this.street !== "predeal" && !this.handOver) {
           throw new Error("Finish the hand first");
         }
-        // Rebuy broke seated players.
+        // Rebuy broke connected players.
         for (const seat of this.seats) {
           if (seat.connectionId && seat.chips <= 0) {
             seat.chips = STARTING_CHIPS;
@@ -222,6 +276,7 @@ export class PokerTable {
           seat.holes = emptyHoles(n);
           seat.folded = false;
           seat.betStreet = 0;
+          seat.contributed = 0;
           seat.acted = false;
           seat.inHand = seat.connectionId !== null;
         }
@@ -314,13 +369,13 @@ export class PokerTable {
         this.currentBet = s.betStreet;
         s.acted = true;
         for (let i = 0; i < this.seats.length; i++) {
-          if (i === seat || this.seats[i].folded) continue;
-          if (!this.seats[i].connectionId) continue;
-          if (this.seats[i].chips === 0) {
-            this.seats[i].acted = true;
+          const other = this.seats[i];
+          if (i === seat || other.folded || !other.inHand) continue;
+          if (other.chips === 0) {
+            other.acted = true;
             continue;
           }
-          this.seats[i].acted = false;
+          other.acted = false;
         }
         if (this.afterAction()) this.notify();
         return;
@@ -336,8 +391,7 @@ export class PokerTable {
     const doReveal =
       this.handOver && this.street === "river" && this.board[4] !== null;
     const n = this.holes();
-    const filled = this.filledSeats();
-    const seated = filled.length;
+    const seated = this.seatedCount();
     const tableLive = this.street !== "predeal";
 
     let yourHoles: WireCard[] = emptyHoles(n);
@@ -348,9 +402,13 @@ export class PokerTable {
     // Deprecated HU helpers — only when exactly one other *in-hand* opponent.
     let opponentHidden: boolean[] | undefined;
     let opponentHoles: WireCard[] | null | undefined;
-    const othersInHand = filled.filter(
-      (i) => i !== yourSeat && this.seats[i].inHand,
-    );
+    const othersInHand: number[] = [];
+    for (let i = 0; i < this.seats.length; i++) {
+      if (i === yourSeat) continue;
+      if (this.seats[i].playerId && this.seats[i].inHand) {
+        othersInHand.push(i);
+      }
+    }
     if (yourSeat >= 0 && othersInHand.length === 1) {
       const opp = this.seats[othersInHand[0]];
       if (doReveal) {
@@ -394,17 +452,19 @@ export class PokerTable {
       this.bettingRoundComplete() &&
       canBetSeats.length >= 2;
 
-    const waiting = seated < MIN_ONLINE_PLAYERS;
+    const connected = seated;
+    const occupied = this.occupiedCount();
+    const waiting = connected < MIN_ONLINE_PLAYERS;
+    const youHost = this.isHostConnection(connectionId);
     let status: string;
     if (waiting) {
       status = roomId
-        ? `Room ${roomId} — ${seated}/${MIN_ONLINE_PLAYERS} players…`
-        : `Waiting for players (${seated}/${MIN_ONLINE_PLAYERS})…`;
+        ? `Room ${roomId} — ${connected}/${MIN_ONLINE_PLAYERS} players…`
+        : `Waiting for players (${connected}/${MIN_ONLINE_PLAYERS})…`;
     } else if (this.street === "predeal") {
-      status =
-        connectionId === this.hostId
-          ? `${seated} players ready. Deal hands when you want.`
-          : "Waiting for host to deal.";
+      status = youHost
+        ? `${connected} players ready. Deal hands when you want.`
+        : "Waiting for host to deal.";
     } else if (
       yourSeat >= 0 &&
       !this.seats[yourSeat].inHand &&
@@ -444,20 +504,21 @@ export class PokerTable {
     const bb = tableLive ? (this.bbSeatFixed ?? -1) : -1;
 
     const seats: SeatPublic[] = this.seats.map((s, i) => {
-      const filledSeat = s.connectionId !== null;
+      const occupiedSeat = s.playerId !== null;
+      const connectedSeat = s.connectionId !== null;
       const pub: SeatPublic = {
-        filled: filledSeat,
-        connected: filledSeat,
+        filled: occupiedSeat,
+        connected: connectedSeat,
         chips: s.chips,
         bet: s.betStreet,
         folded: s.folded,
-        inHand: filledSeat ? s.inHand : false,
+        inHand: occupiedSeat ? s.inHand : false,
         // Blind/button markers use deal-time seats; never re-derive after leaves.
-        isButton: tableLive && filledSeat && i === this.buttonSeat,
-        isSmallBlind: tableLive && filledSeat && i === sb,
-        isBigBlind: tableLive && filledSeat && i === bb,
+        isButton: tableLive && occupiedSeat && i === this.buttonSeat,
+        isSmallBlind: tableLive && occupiedSeat && i === sb,
+        isBigBlind: tableLive && occupiedSeat && i === bb,
       };
-      if (!filledSeat || !s.inHand) return pub;
+      if (!occupiedSeat || !s.inHand) return pub;
 
       // Own holes live in `yourHoles` only — avoid duplicating on the wire.
       if (i === yourSeat) return pub;
@@ -465,11 +526,13 @@ export class PokerTable {
       if (doReveal) {
         pub.holes = s.holes.slice();
         pub.holeHidden = Array.from({ length: n }, () => false);
-      } else {
+      } else if (s.holes.some((c) => c !== null)) {
         pub.holeHidden = s.holes.map((c) => c !== null);
       }
       return pub;
     });
+
+    const potLayers = this.currentPotLayers();
 
     return {
       type: "state",
@@ -478,10 +541,10 @@ export class PokerTable {
       gameType: this.gameType,
       street: this.street,
       yourSeat: yourSeat >= 0 ? yourSeat : null,
-      youAreHost: connectionId === this.hostId,
+      youAreHost: youHost,
       seats,
       maxSeats: MAX_ONLINE_PLAYERS,
-      seatedCount: seated,
+      seatedCount: occupied,
       board: this.board.slice(),
       yourHoles,
       opponentHidden,
@@ -489,6 +552,7 @@ export class PokerTable {
       revealed: doReveal,
       status,
       pot: this.pot,
+      pots: potLayers.length > 1 ? potLayers : undefined,
       smallBlind: SMALL_BLIND,
       bigBlind: BIG_BLIND,
       buttonSeat: tableLive ? this.buttonSeat : null,
@@ -524,6 +588,7 @@ export class PokerTable {
     for (const seat of this.seats) {
       seat.holes = emptyHoles(this.holes());
       seat.betStreet = 0;
+      seat.contributed = 0;
       seat.folded = false;
       seat.acted = false;
       seat.inHand = false;
@@ -576,6 +641,36 @@ export class PokerTable {
     this.pushHistory(`#${this.handsDealt} ${result}`);
   }
 
+  private recordSidePotResults(
+    awards: { seat: number; amount: number }[],
+    totalPot: number,
+  ) {
+    if (awards.length === 0) {
+      this.recordHandResult(totalPot, []);
+      return;
+    }
+    // Collapse per-seat totals for history.
+    const bySeat = new Map<number, number>();
+    for (const a of awards) {
+      bySeat.set(a.seat, (bySeat.get(a.seat) ?? 0) + a.amount);
+    }
+    const parts = [...bySeat.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([seat, amount]) => `${this.seatLabel(seat)} wins ${amount}`);
+    this.pushHistory(`#${this.handsDealt} ${parts.join(" · ")}`);
+  }
+
+  /** Live pot layers from contributions (for UI when side pots exist). */
+  private currentPotLayers(): PotPublic[] {
+    return buildSidePots(
+      this.seats.map((s, seat) => ({
+        seat,
+        amount: s.contributed,
+        folded: s.folded || !s.inHand,
+      })),
+    );
+  }
+
   private postBlinds() {
     const sb = this.smallBlindSeat();
     const bb = this.bigBlindSeat();
@@ -596,11 +691,12 @@ export class PokerTable {
     return this.deck.splice(0, n);
   }
 
+  /** Contenders still in the hand (may be disconnected if all-in). */
   private activeSeats(): number[] {
     const out: number[] = [];
     for (let i = 0; i < this.seats.length; i++) {
       const s = this.seats[i];
-      if (s.connectionId && s.inHand && !s.folded) out.push(i);
+      if (s.inHand && !s.folded) out.push(i);
     }
     return out;
   }
@@ -613,6 +709,7 @@ export class PokerTable {
     const n = Math.min(amount, seat.chips);
     seat.chips -= n;
     seat.betStreet += n;
+    seat.contributed += n;
     this.pot += n;
     return n;
   }
@@ -822,36 +919,57 @@ export class PokerTable {
     this.actionSeat = null;
     this.handOver = true;
     const active = this.activeSeats();
+    const totalPot = this.pot;
     if (active.length === 0) {
       this.winnerSeats = [];
+      this.pot = 0;
       return;
     }
     if (active.length === 1) {
       this.winnerSeats = active;
-      const won = this.pot;
-      this.seats[active[0]].chips += this.pot;
+      this.seats[active[0]].chips += totalPot;
       this.pot = 0;
-      this.recordHandResult(won, active);
+      this.recordHandResult(totalPot, active);
       return;
     }
 
     const board = this.board.filter((c): c is number => c !== null);
-    const scores = active.map((i) => {
-      const holes = this.seats[i].holes.filter((c): c is number => c !== null);
+    const scoreOf = (seat: number) => {
+      const holes = this.seats[seat].holes.filter(
+        (c): c is number => c !== null,
+      );
       return scoreHand(this.gameType, holes, board);
-    });
-    const best = Math.max(...scores);
-    const winners = active.filter((_, idx) => scores[idx] === best);
-    this.winnerSeats = winners;
-    const won = this.pot;
-    const share = Math.floor(this.pot / winners.length);
-    let remainder = this.pot - share * winners.length;
-    for (const i of winners) {
-      this.seats[i].chips += share + (remainder > 0 ? 1 : 0);
-      if (remainder > 0) remainder -= 1;
+    };
+
+    const pots = buildSidePots(
+      this.seats.map((s, seat) => ({
+        seat,
+        amount: s.contributed,
+        folded: s.folded || !s.inHand,
+      })),
+    );
+
+    const winnerSet = new Set<number>();
+    const awards: { seat: number; amount: number }[] = [];
+    for (const layer of pots) {
+      if (layer.amount <= 0 || layer.eligible.length === 0) continue;
+      let winners = layer.eligible;
+      if (winners.length > 1) {
+        const scores = winners.map(scoreOf);
+        const best = Math.max(...scores);
+        winners = winners.filter((_, idx) => scores[idx] === best);
+      }
+      const shares = splitPotAmount(layer.amount, winners);
+      for (const [seat, amount] of shares) {
+        this.seats[seat].chips += amount;
+        winnerSet.add(seat);
+        awards.push({ seat, amount });
+      }
     }
+
+    this.winnerSeats = [...winnerSet].sort((a, b) => a - b);
     this.pot = 0;
-    this.recordHandResult(won, winners);
+    this.recordSidePotResults(awards, totalPot);
   }
 
   private requireActor(connectionId: string): number {

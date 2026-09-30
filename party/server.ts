@@ -1,4 +1,9 @@
-import { routePartykitRequest, Server, type Connection } from "partyserver";
+import {
+  routePartykitRequest,
+  Server,
+  type Connection,
+  type ConnectionContext,
+} from "partyserver";
 import type { ClientMessage, ServerMessage } from "../shared/protocol";
 import { PokerTable } from "./room/table";
 
@@ -17,8 +22,22 @@ export class PokerRoom extends Server<Env> {
     this.table.ensureSeats();
   }
 
-  onConnect(conn: Connection) {
-    const seated = this.table.seatPlayer(conn.id);
+  onConnect(conn: Connection, ctx: ConnectionContext) {
+    const url = new URL(ctx.request.url);
+    const playerId =
+      url.searchParams.get("playerId") ||
+      url.searchParams.get("pid") ||
+      "";
+    if (!playerId) {
+      this.send(conn, {
+        type: "error",
+        message: "Missing playerId — update the client and retry.",
+      });
+      conn.close(4001, "Missing playerId");
+      return;
+    }
+
+    const seated = this.table.seatPlayer(conn.id, playerId);
     if (!seated.ok) {
       this.send(conn, { type: "error", message: seated.message });
       conn.close(4000, "Room full");

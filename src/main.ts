@@ -319,7 +319,10 @@ function potChipTone(pot: number): string {
   return "white";
 }
 
-function renderPotDisplay(pot: number): string {
+function renderPotDisplay(
+  pot: number,
+  layers?: { amount: number; eligible: number[] }[] | null,
+): string {
   const tone = potChipTone(pot);
   const stack = Math.min(5, Math.max(1, Math.ceil(pot / 50) || 1));
   // i=0 is the top chip; later chips sit below it.
@@ -328,12 +331,19 @@ function renderPotDisplay(pot: number): string {
     const z = stack - i;
     return `<span class="chip chip--${tone}" style="--chip-y: ${offset}px; --chip-z: ${z}" aria-hidden="true"></span>`;
   }).join("");
+  const sideNote =
+    layers && layers.length > 1
+      ? `<span class="pot__sides">${layers
+          .map((p, i) => (i === 0 ? `Main ${p.amount}` : `Side ${p.amount}`))
+          .join(" · ")}</span>`
+      : "";
   return `
     <div class="pot" data-tone="${tone}">
       <div class="pot__stack" style="--stack-n: ${stack}">${chips}</div>
       <div class="pot__copy">
         <span class="pot__label">Pot</span>
         <strong class="pot__amount">${pot.toLocaleString()}</strong>
+        ${sideNote}
       </div>
     </div>
   `;
@@ -1300,15 +1310,16 @@ function renderTable(): string {
     state.street === "turn" &&
     hostCanDeal &&
     streetReady;
+  const onlineConnected = online
+    ? online.seats.filter((s) => s.connected).length
+    : 0;
   const canDealHands =
     hostCanDeal &&
     (state.mode === "solo"
       ? true
       : Boolean(
           online &&
-            (online.seatedCount ??
-              online.seats.filter((s) => s.filled).length) >=
-              MIN_ONLINE_PLAYERS &&
+            onlineConnected >= MIN_ONLINE_PLAYERS &&
             (online.street === "predeal" ||
               online.handOver ||
               !state.onlineSupportsBetting),
@@ -1319,14 +1330,14 @@ function renderTable(): string {
   const sidebarsOpen = outsSidebarOpen || historySidebarOpen;
 
   const roomCode = state.roomCode || online?.roomId || "";
-  const onlineSeated =
+  const onlineOccupied =
     online?.seatedCount ?? online?.seats.filter((s) => s.filled).length ?? 0;
   const onlineCap = online?.maxSeats ?? MAX_ONLINE_PLAYERS;
   const meta =
     state.mode === "online"
       ? `${gameLabel(state.gameType)} · ${
           online ? (online.youAreHost ? "Host" : "Guest") : "Connecting…"
-        } · ${onlineSeated}/${onlineCap}${
+        } · ${onlineConnected}/${onlineOccupied || onlineCap}${
           online
             ? ` · Blinds ${online.smallBlind}/${online.bigBlind}`
             : ""
@@ -1383,7 +1394,7 @@ function renderTable(): string {
             </div>
           </div>
           <div class="board">
-            ${online ? renderPotDisplay(online.pot) : ""}
+            ${online ? renderPotDisplay(online.pot, online.pots) : ""}
             <div class="board__cards">
               ${state.board
                 .map((c, i) => {
