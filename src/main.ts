@@ -1030,7 +1030,7 @@ function renderSetup(): string {
   `;
 
   const onlineFields = `
-        <p class="setup-note">2 players · 1000 chips · blinds 25/50 · button rotates each hand · hole cards private until showdown</p>
+        <p class="setup-note"> 1000 chips · blinds 25/50</p>
         <button type="button" class="btn btn--primary" id="btn-create-room">Create room</button>
         <div class="join-row">
           <input
