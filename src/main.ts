@@ -1040,11 +1040,7 @@ function renderSetup(): string {
   `;
 
   const onlineFields = `
-<<<<<<< HEAD
-        <p class="setup-note"> 1000 chips · blinds 25/50</p>
-=======
-        <p class="setup-note">Up to ${MAX_ONLINE_PLAYERS} players · 1000 chips · blinds 25/50 · button rotates each hand · hole cards private until showdown</p>
->>>>>>> 5d8a5fc (Fix winner overlay stacking and multi-tab seating)
+        <p class="setup-note">1000 chips · blinds 25/50</p>
         <button type="button" class="btn btn--primary" id="btn-create-room">Create room</button>
         <div class="join-row">
           <input
