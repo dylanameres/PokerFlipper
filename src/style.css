@@ -1524,6 +1524,53 @@ html.large-cards .picker__card {
   pointer-events: none;
 }
 
+.card--back[data-card-back="zomba"] {
+  background: #f7f9fc;
+  border-color: rgba(255, 255, 255, 0.8);
+  box-shadow:
+    0 0 10px rgba(255, 255, 255, 0.35),
+    0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+/* Oversized so the spinning rosette always covers the card's corners. */
+.card--back[data-card-back="zomba"]::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 190%;
+  aspect-ratio: 1;
+  background: url("./assets/zomba-rosette.svg") center / 100% no-repeat;
+  transform: translate(-50%, -50%);
+  animation: zomba-spin 30s linear infinite;
+  pointer-events: none;
+}
+
+.card--back[data-card-back="zomba"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 6px rgba(40, 50, 70, 0.25);
+  pointer-events: none;
+}
+
+.card.card--back.card--flying[data-card-back="zomba"] {
+  overflow: hidden;
+}
+
+@keyframes zomba-spin {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card--back[data-card-back="zomba"]::before {
+    animation: none;
+  }
+}
+
 .card--pickable {
   cursor: pointer;
   transition: transform 0.08s ease, box-shadow 0.12s ease;

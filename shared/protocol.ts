@@ -18,8 +18,9 @@ export const MIN_BET = BIG_BLIND;
  * 7 = per-seat display names (set_name).
  * 8 = per-seat card backs (set_card_back).
  * 9 = more card backs (felt, noir, midnight, sunset).
+ * 10 = zomba card back.
  */
-export const ROOM_PROTOCOL = 9;
+export const ROOM_PROTOCOL = 10;
 
 /** Face-down card back designs shared by client + room server. */
 export const CARD_BACK_IDS = [
@@ -31,6 +32,7 @@ export const CARD_BACK_IDS = [
   "noir",
   "midnight",
   "sunset",
+  "zomba",
 ] as const;
 
 export type CardBackId = (typeof CARD_BACK_IDS)[number];
