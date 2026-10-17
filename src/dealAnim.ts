@@ -162,7 +162,9 @@ function flyCard(
 
   const ghost = document.createElement("div");
   ghost.className = "card card--back card--flying";
-  const back = target.getAttribute("data-card-back");
+  const back =
+    target.getAttribute("data-card-back") ??
+    document.querySelector("#table-deck [data-card-back]")?.getAttribute("data-card-back");
   if (back) ghost.setAttribute("data-card-back", back);
   ghost.style.width = `${to.width}px`;
   ghost.style.height = `${to.height}px`;

@@ -1025,7 +1025,7 @@ function renderCard(
   const suit = str[1];
   const color = suitColorClass(suit);
   return `
-    <div class="card card--face ${color}${compact ? " card--sm" : ""}${pickClass}${pendingClass}" title="${str}"${pickAttrs}${dealAttr} aria-label="${str}">
+    <div class="card card--face ${color}${compact ? " card--sm" : ""}${pickClass}${pendingClass}" title="${str}"${pickAttrs}${dealAttr}${cardBack ? backAttr : ""} aria-label="${str}">
       <span class="card__rank">${rank}</span>
       <span class="card__suit">${SUIT_GLYPH[suit]}</span>
     </div>
