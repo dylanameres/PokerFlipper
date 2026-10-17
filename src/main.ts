@@ -106,6 +106,7 @@ const CARD_BACKS: { id: CardBackId; label: string; detail: string }[] = [
   { id: "noir", label: "Noir", detail: "Black & gold" },
   { id: "midnight", label: "Midnight", detail: "Starry night" },
   { id: "sunset", label: "Sunset", detail: "Warm horizon" },
+  { id: "zomba", label: "Zomba", detail: "Titanium white" },
 ];
 
 interface SavedSettings {
