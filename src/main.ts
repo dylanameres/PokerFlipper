@@ -92,6 +92,8 @@ interface AppState {
   preferredNameSynced: boolean;
   /** Online: already pushed local card-back preference this session. */
   preferredCardBackSynced: boolean;
+  /** Solo flip-mode finished-hand lines (newest last). */
+  soloHistory: string[];
 }
 
 const SETTINGS_KEY = "pokerflipper-settings";
@@ -197,6 +199,7 @@ const state: AppState = {
   renameDraft: "",
   preferredNameSynced: false,
   preferredCardBackSynced: false,
+  soloHistory: [],
 };
 
 function escapeHtml(text: string): string {
@@ -303,6 +306,42 @@ function refreshEquity() {
     return;
   }
   state.equities = liveEquity(state.gameType, filledHands(), filledBoard());
+  if (state.mode === "solo" && state.street === "river") {
+    recordSoloHandResult();
+  }
+}
+
+/** Append/update a solo showdown line once the river is complete. */
+function recordSoloHandResult() {
+  if (state.mode !== "solo") return;
+  if (state.street !== "river" || !state.equities?.length) return;
+  if (state.handsDealtCount < 1) return;
+  if (state.board.some((c) => c === null)) return;
+  if (state.hands.some((h) => h.some((c) => c === null))) return;
+
+  const lead = leadingEquity();
+  if (lead <= 0) return;
+  const winners = state.equities
+    .map((eq, i) => (eq >= lead - 0.05 ? i : -1))
+    .filter((i) => i >= 0);
+
+  let result: string;
+  if (winners.length >= 2) {
+    result = `Chop · ${winners.map((i) => `P${i + 1}`).join(" ")}`;
+  } else if (winners.length === 1) {
+    result = `P${winners[0] + 1} wins`;
+  } else {
+    return;
+  }
+
+  const prefix = `#${state.handsDealtCount} `;
+  const line = `${prefix}${result}`;
+  const existing = state.soloHistory.findIndex((l) => l.startsWith(prefix));
+  if (existing >= 0) state.soloHistory[existing] = line;
+  else state.soloHistory.push(line);
+  if (state.soloHistory.length > 40) {
+    state.soloHistory.splice(0, state.soloHistory.length - 40);
+  }
 }
 
 function startSoloTable() {
@@ -311,6 +350,7 @@ function startSoloTable() {
   state.online = null;
   state.onlineError = null;
   state.handsDealtCount = 0;
+  state.soloHistory = [];
   resetTable();
   state.screen = "table";
   render();
@@ -1236,15 +1276,19 @@ function historyLineTone(
   return "neutral";
 }
 
-function renderHistorySidebar(online: RoomView): string {
-  const lines = online.history ?? [];
+function renderHistorySidebar(
+  lines: string[],
+  online: RoomView | null,
+): string {
   const body =
     lines.length === 0
       ? `<p class="history__empty">Finished hands show up here.</p>`
       : `<ol class="history__list">${lines
           .map((line) => {
-            const text = escapeHtml(personalizeHistoryLine(line, online));
-            const tone = historyLineTone(line, online.yourSeat);
+            const text = escapeHtml(
+              online ? personalizeHistoryLine(line, online) : line,
+            );
+            const tone = historyLineTone(line, online?.yourSeat ?? null);
             const toneClass =
               tone === "win"
                 ? " history__line--win"
@@ -1603,7 +1647,11 @@ function renderTable(): string {
         ));
   const outsSidebarOpen =
     showEquityUi && state.outsSeat !== null && canShowOuts();
-  const historySidebarOpen = state.mode === "online";
+  const historySidebarOpen = true;
+  const historyLines =
+    state.mode === "online"
+      ? (online?.history ?? [])
+      : state.soloHistory;
   const sidebarsOpen = outsSidebarOpen || historySidebarOpen;
 
   const roomCode = state.roomCode || online?.roomId || "";
@@ -1625,7 +1673,16 @@ function renderTable(): string {
     <main class="page page--table${sidebarsOpen ? " page--table-sidebar" : ""}${
       historySidebarOpen ? " page--table-history" : ""
     }">
-      ${historySidebarOpen && online ? renderHistorySidebar(online) : historySidebarOpen ? `<aside class="history-sidebar" aria-label="Hand history"><div class="history__head"><h2>Hand history</h2></div><p class="history__empty">Connecting…</p></aside>` : ""}
+      ${
+        historySidebarOpen
+          ? state.mode === "online" && !online
+            ? `<aside class="history-sidebar" aria-label="Hand history"><div class="history__head"><h2>Hand history</h2></div><p class="history__empty">Connecting…</p></aside>`
+            : renderHistorySidebar(
+                historyLines,
+                state.mode === "online" ? online : null,
+              )
+          : ""
+      }
       <div class="table-shell">
         <header class="table-bar">
           <div>
