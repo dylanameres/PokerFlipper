@@ -1,67 +1,56 @@
 """Generate src/assets/zomba-rosette.svg (the "zomba" card back).
 
-The rosette is a checkerboard laid out on a log-polar grid: cell edges follow
-two mirrored families of logarithmic spirals, so cells shrink toward the center.
-TWIST shears angle by log-radius to give the pattern its swirl.
+The Zomba rim is a rosette of circles: CIRCLES equal circles, each passing
+through the center, spaced evenly around it. Their arcs cross in both
+directions, so the white strokes form a lattice of diamond cells that shrink
+toward the center, and the outer edge is scalloped.
 
 Run: python3 scripts/gen-zomba-rosette.py
 """
 
-import math
 from pathlib import Path
 
-ARMS = 20  # spirals per direction
-TWIST = 0.3
-GAP = 0.08  # fraction of a cell left white on each side
-EDGE_STEPS = 3  # points per cell edge (cells are curved)
-R = 50  # viewBox half-size
-R_MAX = 1.45  # cover the square's corners
-R_MIN = 0.02
+CIRCLES = 26
+STROKE = 2.4  # white lattice line width at the rim (viewBox units)
+GLOW = 4.0  # soft halo drawn under each line
+BANDS = 12  # rings the line width steps across
+R = 50  # viewBox half-size; the rosette's outer edge touches it
 
-D = 2 * math.pi / ARMS
 OUT = Path(__file__).resolve().parent.parent / "src" / "assets" / "zomba-rosette.svg"
 
 
-def point(a: float, b: float) -> tuple[float, float]:
-    u = (a - b) * D / 2
-    theta = (a + b) * D / 2 + TWIST * u
-    r = R * math.exp(u)
-    return r * math.cos(theta), r * math.sin(theta)
-
-
-def cell_outline() -> list[tuple[float, float]]:
-    lo, hi = GAP, 1 - GAP
-    t = [lo + (hi - lo) * i / EDGE_STEPS for i in range(EDGE_STEPS + 1)]
-    return (
-        [(x, lo) for x in t]
-        + [(hi, y) for y in t[1:]]
-        + [(x, hi) for x in reversed(t[:-1])]
-        + [(lo, y) for y in reversed(t[1:-1])]
-    )
-
-
 def main() -> None:
-    outline = cell_outline()
-    paths = []
-    k_min = math.floor(2 * math.log(R_MIN) / D) - 1
-    k_max = math.ceil(2 * math.log(R_MAX) / D) + 1
-    for k in range(k_min, k_max):
-        for s in range(0, 2 * ARMS, 2):
-            if (k + s) % 2:
-                continue
-            a0, b0 = (s + k) // 2, (s - k) // 2
-            pts = [point(a0 + x, b0 + y) for x, y in outline]
-            paths.append("M" + "L".join(f"{x:.1f} {y:.1f}" for x, y in pts) + "Z")
-
+    r = R / 2
+    uses = "".join(
+        f'<use href="#c" transform="rotate({i * 360 / CIRCLES:g})"/>' for i in range(CIRCLES)
+    )
+    # Cells shrink toward the center, so lines must too or they merge into a blob.
+    clips, glow, lines = [], [], []
+    for b in range(BANDS):
+        inner, outer = R * b / BANDS, R * (b + 1) / BANDS
+        scale = max(((inner + outer) / 2 / R) ** 0.85, 0.12)
+        ring = f"M{outer:g} 0A{outer:g} {outer:g} 0 1 0 -{outer:g} 0A{outer:g} {outer:g} 0 1 0 {outer:g} 0Z"
+        if inner:
+            ring += f"M{inner:g} 0A{inner:g} {inner:g} 0 1 1 -{inner:g} 0A{inner:g} {inner:g} 0 1 1 {inner:g} 0Z"
+        clips.append(f'<clipPath id="b{b}"><path fill-rule="evenodd" d="{ring}"/></clipPath>')
+        glow.append(f'<g clip-path="url(#b{b})" stroke-width="{GLOW * scale:.2f}"><use href="#all"/></g>')
+        lines.append(f'<g clip-path="url(#b{b})" stroke-width="{STROKE * scale:.2f}"><use href="#all"/></g>')
     svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="-{R} -{R} {2 * R} {2 * R}">
-<defs><radialGradient id="g"><stop offset="0" stop-color="#fff"/><stop offset=".12" stop-color="#fff" stop-opacity=".85"/><stop offset=".35" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>
-<rect x="-{R}" y="-{R}" width="{2 * R}" height="{2 * R}" fill="#f7f9fc"/>
-<path fill="#aeb6c2" d="{''.join(paths)}"/>
-<circle r="{R}" fill="url(#g)"/>
+<defs>
+<radialGradient id="cell"><stop offset="0" stop-color="#c4c8ce"/><stop offset=".5" stop-color="#9da2a9"/><stop offset="1" stop-color="#90959c"/></radialGradient>
+<radialGradient id="core"><stop offset="0" stop-color="#fff"/><stop offset=".05" stop-color="#fff" stop-opacity=".8"/><stop offset=".18" stop-color="#fff" stop-opacity="0"/></radialGradient>
+<circle id="c" cx="{r:g}" r="{r:g}"/>
+<g id="all">{uses}</g>
+{"".join(clips)}
+</defs>
+<circle r="{R}" fill="url(#cell)"/>
+<g fill="none" stroke="#fff" stroke-opacity=".45">{"".join(glow)}</g>
+<g fill="none" stroke="#fff">{"".join(lines)}</g>
+<circle r="{R}" fill="url(#core)"/>
 </svg>
 """
     OUT.write_text(svg)
-    print(f"wrote {OUT} ({len(paths)} cells, {len(svg)} bytes)")
+    print(f"wrote {OUT} ({len(svg)} bytes)")
 
 
 if __name__ == "__main__":
