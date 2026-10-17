@@ -545,6 +545,7 @@ legend {
   background: none;
 }
 
+.card-back-option__preview[data-card-back="blue"],
 .card-back-option[data-card-back="blue"] .card-back-option__preview {
   background:
     repeating-linear-gradient(
@@ -558,6 +559,7 @@ legend {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
 }
 
+.card-back-option__preview[data-card-back="red"],
 .card-back-option[data-card-back="red"] .card-back-option__preview {
   background:
     repeating-linear-gradient(
@@ -571,6 +573,7 @@ legend {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
 }
 
+.card-back-option__preview[data-card-back="arcane"],
 .card-back-option[data-card-back="arcane"] .card-back-option__preview {
   background:
     radial-gradient(circle at 30% 25%, rgba(220, 180, 255, 0.55) 0%, transparent 42%),
@@ -588,6 +591,7 @@ legend {
     0 2px 6px rgba(0, 0, 0, 0.35);
 }
 
+.card-back-option__preview[data-card-back="rainbow"],
 .card-back-option[data-card-back="rainbow"] .card-back-option__preview {
   background:
     linear-gradient(
@@ -607,6 +611,7 @@ legend {
   overflow: hidden;
 }
 
+.card-back-option__preview[data-card-back="rainbow"]::after,
 .card-back-option[data-card-back="rainbow"] .card-back-option__preview::after {
   content: "";
   position: absolute;
@@ -710,7 +715,18 @@ legend {
   top: 46%;
   transform: translate(-50%, -50%);
   z-index: 4;
-  pointer-events: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.table-deck:focus-visible {
+  outline: 2px solid rgba(126, 217, 87, 0.7);
+  outline-offset: 6px;
+  border-radius: 8px;
 }
 
 .table-deck__stack {
@@ -1400,7 +1416,7 @@ html.large-cards .picker__card {
 
 .table-deck__card.card--back {
   position: absolute;
-  overflow: visible;
+  overflow: hidden;
 }
 
 /* Per-card backs (online: each seat; solo: local preference). */

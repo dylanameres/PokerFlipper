@@ -67,8 +67,12 @@ interface AppState {
   showEquity: boolean;
   /** Larger card faces on the table. */
   largeCards: boolean;
-  /** Face-down card back design. */
+  /** Hole-card / face-down back (online: synced to table). */
   cardBack: CardBackId;
+  /** Local-only table deck pile back (not shared). */
+  deckCardBack: CardBackId;
+  /** Deck back picker modal open. */
+  deckBackOpen: boolean;
   /** Online table SFX (bet / fold / your turn). */
   soundEnabled: boolean;
   /** Online multiplayer view from room server (null in solo). */
@@ -105,6 +109,7 @@ interface SavedSettings {
   showEquity: boolean;
   largeCards: boolean;
   cardBack: CardBackId;
+  deckCardBack: CardBackId;
   soundEnabled: boolean;
 }
 
@@ -114,6 +119,7 @@ function loadSettings(): SavedSettings {
     showEquity: true,
     largeCards: false,
     cardBack: "blue",
+    deckCardBack: "blue",
     soundEnabled: true,
   };
   try {
@@ -125,6 +131,9 @@ function loadSettings(): SavedSettings {
       showEquity: parsed.showEquity !== false,
       largeCards: Boolean(parsed.largeCards),
       cardBack: isCardBackId(parsed.cardBack) ? parsed.cardBack : "blue",
+      deckCardBack: isCardBackId(parsed.deckCardBack)
+        ? parsed.deckCardBack
+        : "blue",
       soundEnabled: parsed.soundEnabled !== false,
     };
   } catch {
@@ -141,6 +150,7 @@ function saveSettings() {
         showEquity: state.showEquity,
         largeCards: state.largeCards,
         cardBack: state.cardBack,
+        deckCardBack: state.deckCardBack,
         soundEnabled: state.soundEnabled,
       } satisfies SavedSettings),
     );
@@ -169,6 +179,8 @@ const state: AppState = {
   showEquity: saved.showEquity,
   largeCards: saved.largeCards,
   cardBack: saved.cardBack,
+  deckCardBack: saved.deckCardBack,
+  deckBackOpen: false,
   soundEnabled: saved.soundEnabled,
   online: null,
   onlineSupportsBetting: true,
@@ -771,17 +783,20 @@ function settingsSwitchRow(
   `;
 }
 
-function renderCardBackPicker(): string {
-  const options = CARD_BACKS.map((back) => {
-    const selected = state.cardBack === back.id;
+function renderCardBackOptions(
+  selected: CardBackId,
+  dataAttr: "card-back" | "deck-back",
+): string {
+  return CARD_BACKS.map((back) => {
+    const isSelected = selected === back.id;
     return `
       <button
         type="button"
-        class="card-back-option${selected ? " card-back-option--selected" : ""}"
-        data-card-back="${back.id}"
-        aria-pressed="${selected}"
+        class="card-back-option${isSelected ? " card-back-option--selected" : ""}"
+        data-${dataAttr}="${back.id}"
+        aria-pressed="${isSelected}"
       >
-        <span class="card card--back card--sm card-back-option__preview" aria-hidden="true"></span>
+        <span class="card card--back card--sm card-back-option__preview" data-card-back="${back.id}" aria-hidden="true"></span>
         <span class="card-back-option__copy">
           <strong>${back.label}</strong>
           <small>${back.detail}</small>
@@ -789,15 +804,45 @@ function renderCardBackPicker(): string {
       </button>
     `;
   }).join("");
+}
+
+function renderCardBackPicker(): string {
   return `
     <div class="settings__section">
-      <div class="settings__section-label">Card back</div>
+      <div class="settings__section-label">Hole card back</div>
       <p class="settings__hint">${
         state.mode === "online"
           ? "Your hole-card backs — everyone at the table sees this"
-          : "Face-down card design"
+          : "Face-down hole cards"
       }</p>
-      <div class="card-back-picker">${options}</div>
+      <div class="card-back-picker">${renderCardBackOptions(state.cardBack, "card-back")}</div>
+    </div>
+  `;
+}
+
+function openDeckBackDialog() {
+  state.deckBackOpen = true;
+  state.settingsOpen = false;
+  render();
+}
+
+function closeDeckBackDialog() {
+  state.deckBackOpen = false;
+  render();
+}
+
+function renderDeckBackPanel(): string {
+  if (!state.deckBackOpen || state.screen !== "table") return "";
+  return `
+    <div class="settings-backdrop" id="deck-back-backdrop">
+      <div class="settings-panel" id="deck-back-panel" role="dialog" aria-modal="true" aria-labelledby="deck-back-title">
+        <header class="settings__head">
+          <h2 id="deck-back-title">Deck back</h2>
+          <button type="button" class="outs__close" id="btn-close-deck-back" aria-label="Close">×</button>
+        </header>
+        <p class="settings__hint">Only you see this — the deck pile on your table.</p>
+        <div class="card-back-picker">${renderCardBackOptions(state.deckCardBack, "deck-back")}</div>
+      </div>
     </div>
   `;
 }
@@ -1616,13 +1661,19 @@ function renderTable(): string {
         </header>
 
         <div class="felt">
-          <div class="table-deck" id="table-deck" aria-hidden="true" title="Deck">
-            <div class="table-deck__stack">
-              <span class="card card--back table-deck__card"></span>
-              <span class="card card--back table-deck__card"></span>
-              <span class="card card--back table-deck__card"></span>
+          <button
+            type="button"
+            class="table-deck"
+            id="table-deck"
+            title="Deck back"
+            aria-label="Choose deck card back"
+          >
+            <div class="table-deck__stack" aria-hidden="true">
+              <span class="card card--back table-deck__card" data-card-back="${state.deckCardBack}"></span>
+              <span class="card card--back table-deck__card" data-card-back="${state.deckCardBack}"></span>
+              <span class="card card--back table-deck__card" data-card-back="${state.deckCardBack}"></span>
             </div>
-          </div>
+          </button>
           <div class="board">
             ${online ? renderPotDisplay(online.pot, online.pots) : ""}
             <div class="board__cards">
@@ -1752,7 +1803,8 @@ function render() {
     state.screen === "table" ? currentDealKeys() : ([] as string[]);
   const incoming = state.screen === "table" ? newDealKeys(dealKeys) : [];
   const page = state.screen === "setup" ? renderSetup() : renderTable();
-  root.innerHTML = page + renderSettingsPanel() + renderRenamePanel();
+  root.innerHTML =
+    page + renderSettingsPanel() + renderRenamePanel() + renderDeckBackPanel();
   bindEvents();
   if (state.screen === "table") {
     rememberDealKeys(dealKeys);
@@ -1816,7 +1868,7 @@ function bindSettingsEvents() {
       toggleSetting(key);
     });
   });
-  // Only the picker buttons — not document-level data-card-back.
+  // Hole-card back options (settings).
   document
     .querySelectorAll<HTMLButtonElement>("button.card-back-option[data-card-back]")
     .forEach((btn) => {
@@ -1831,6 +1883,22 @@ function bindSettingsEvents() {
           state.preferredCardBackSynced = true;
           sendOnline({ type: "set_card_back", cardBack: id });
         }
+        render();
+      });
+    });
+
+  // Deck-pile back options (deck modal).
+  document
+    .querySelectorAll<HTMLButtonElement>("button.card-back-option[data-deck-back]")
+    .forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = btn.dataset.deckBack;
+        if (!isCardBackId(id) || id === state.deckCardBack) return;
+        state.deckCardBack = id;
+        saveSettings();
+        state.deckBackOpen = false;
         render();
       });
     });
@@ -1889,6 +1957,18 @@ function bindEvents() {
   }
 
   document.getElementById("btn-setup")?.addEventListener("click", backToSetup);
+  document.getElementById("table-deck")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openDeckBackDialog();
+  });
+  document.getElementById("btn-close-deck-back")?.addEventListener("click", closeDeckBackDialog);
+  document.getElementById("deck-back-backdrop")?.addEventListener("click", (e) => {
+    if (e.target === e.currentTarget) closeDeckBackDialog();
+  });
+  document.getElementById("deck-back-panel")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+  });
   document.getElementById("btn-rename")?.addEventListener("click", openRenameDialog);
   document.getElementById("btn-close-rename")?.addEventListener("click", closeRenameDialog);
   document.getElementById("btn-cancel-rename")?.addEventListener("click", closeRenameDialog);
