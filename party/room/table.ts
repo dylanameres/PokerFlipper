@@ -29,7 +29,12 @@ import {
   fullDeck,
   secureShuffle,
 } from "./deck";
-import { buildSidePots, splitPotAmount } from "./pots";
+import {
+  buildSidePots,
+  splitPotAmount,
+  uncalledExcess,
+  type PotContribution,
+} from "./pots";
 import type { RoomSeat } from "./types";
 
 export type TableNotify = () => void;
@@ -733,13 +738,34 @@ export class PokerTable {
 
   /** Live pot layers from contributions (for UI when side pots exist). */
   private currentPotLayers(): PotPublic[] {
-    return buildSidePots(
-      this.seats.map((s, seat) => ({
+    return buildSidePots(this.potContributions());
+  }
+
+  private potContributions(): PotContribution[] {
+    return this.seats.map((s, seat) => {
+      const folded = s.folded || !s.inHand;
+      return {
         seat,
         amount: s.contributed,
-        folded: s.folded || !s.inHand,
-      })),
-    );
+        folded,
+        allIn: !folded && s.chips === 0 && s.contributed > 0,
+      };
+    });
+  }
+
+  /** Hand back the part of the biggest bet nobody matched. */
+  private returnUncalledBet() {
+    const uncalled = uncalledExcess(this.potContributions());
+    if (!uncalled) return;
+    const s = this.seats[uncalled.seat];
+    const fromStreet = Math.min(uncalled.amount, s.betStreet);
+    s.contributed -= uncalled.amount;
+    s.betStreet -= fromStreet;
+    s.chips += uncalled.amount;
+    this.pot -= uncalled.amount;
+    if (this.currentBet > s.betStreet) {
+      this.currentBet = Math.max(0, ...this.seats.map((x) => x.betStreet));
+    }
   }
 
   private postBlinds() {
@@ -901,6 +927,7 @@ export class PokerTable {
 
   private async finishBettingAndMaybeRunout() {
     const gen = ++this.runoutGen;
+    this.returnUncalledBet();
     if (this.street === "river") {
       this.showdown();
       this.notify();
@@ -1026,13 +1053,7 @@ export class PokerTable {
       return scoreHand(this.gameType, holes, board);
     };
 
-    const pots = buildSidePots(
-      this.seats.map((s, seat) => ({
-        seat,
-        amount: s.contributed,
-        folded: s.folded || !s.inHand,
-      })),
-    );
+    const pots = buildSidePots(this.potContributions());
 
     const winnerSet = new Set<number>();
     const awards: { seat: number; amount: number }[] = [];

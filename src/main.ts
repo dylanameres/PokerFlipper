@@ -463,7 +463,13 @@ function renderPotDisplay(
   const sideNote =
     layers && layers.length > 1
       ? `<span class="pot__sides">${layers
-          .map((p, i) => (i === 0 ? `Main ${p.amount}` : `Side ${p.amount}`))
+          .map((p, i) =>
+            i === 0
+              ? `Main ${p.amount}`
+              : layers.length > 2
+                ? `Side ${i} ${p.amount}`
+                : `Side ${p.amount}`,
+          )
           .join(" · ")}</span>`
       : "";
   return `
