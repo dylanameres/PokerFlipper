@@ -311,6 +311,76 @@ describe("PokerTable multiplayer framework", () => {
     ]);
   });
 
+  it("shows a single pot through multiway bets and raises with no all-in", () => {
+    const { table, ids } = seatedTable(4);
+    table.handle({ type: "deal_hands" }, ids[0]);
+    // Button 0, SB 1, BB 2, UTG 3.
+    const potsNow = () => table.viewFor(ids[0], "MW").pots;
+    expect(potsNow()).toBeUndefined();
+    table.handle({ type: "bet", amount: 150 }, ids[3]);
+    expect(potsNow()).toBeUndefined();
+    table.handle({ type: "call" }, ids[0]);
+    table.handle({ type: "bet", amount: 400 }, ids[1]);
+    expect(potsNow()).toBeUndefined();
+    table.handle({ type: "fold" }, ids[2]);
+    expect(potsNow()).toBeUndefined();
+    table.handle({ type: "call" }, ids[3]);
+    table.handle({ type: "fold" }, ids[0]);
+    const v = table.viewFor(ids[0], "MW");
+    expect(v.street).toBe("flop");
+    expect(v.pot).toBe(50 + 150 + 400 + 400);
+    expect(v.pots).toBeUndefined();
+  });
+
+  it("returns an uncalled raise instead of making a one-player side pot", async () => {
+    vi.useFakeTimers();
+    try {
+      const { table, ids } = seatedTable(3);
+      table.seats[0].chips = 100;
+      table.handle({ type: "deal_hands" }, ids[0]);
+      table.handle({ type: "bet", amount: 100 }, ids[0]); // all-in
+      table.handle({ type: "bet", amount: 800 }, ids[1]); // SB raises
+      table.handle({ type: "fold" }, ids[2]); // BB folds
+
+      const v = table.viewFor(ids[1], "UC");
+      expect(v.pots).toBeUndefined();
+      expect(v.pot).toBe(100 + 100 + 50);
+      expect(v.seats[1].chips).toBe(STARTING_CHIPS - 100);
+
+      await vi.runAllTimersAsync();
+      const done = table.viewFor(ids[1], "UC");
+      expect(done.handOver).toBe(true);
+      const chips = done.seats
+        .filter((s) => s.filled)
+        .reduce((n, s) => n + s.chips, 0);
+      expect(chips).toBe(100 + 2 * STARTING_CHIPS);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("refunds the big blind's excess when the small blind is all-in for less", async () => {
+    vi.useFakeTimers();
+    try {
+      const { table, ids } = seatedTable(2);
+      // Heads-up: button 0 is the BB, seat 1 posts the SB.
+      table.seats[1].chips = 10;
+      table.handle({ type: "deal_hands" }, ids[0]);
+      const v = table.viewFor(ids[0], "BB");
+      expect(v.pot).toBe(20);
+      expect(v.pots).toBeUndefined();
+      expect(v.seats[0].chips).toBe(STARTING_CHIPS - 10);
+      await vi.runAllTimersAsync();
+      const chips = table
+        .viewFor(ids[0], "BB")
+        .seats.filter((s) => s.filled)
+        .reduce((n, s) => n + s.chips, 0);
+      expect(chips).toBe(STARTING_CHIPS + 10);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("lets a seated player set a display name up to 120 chars", () => {
     const { table, ids } = seatedTable(2);
     expect(ROOM_PROTOCOL).toBeGreaterThanOrEqual(7);
