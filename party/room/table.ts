@@ -1,5 +1,7 @@
 import {
   BIG_BLIND,
+  EMOTE_COOLDOWN_MS,
+  EMOTE_DURATION_MS,
   HOLE_COUNT,
   MAX_ONLINE_PLAYERS,
   MIN_BET,
@@ -8,6 +10,7 @@ import {
   SMALL_BLIND,
   STARTING_CHIPS,
   isCardBackId,
+  isEmoteId,
   sanitizePlayerName,
   type ClientMessage,
   type GameType,
@@ -57,6 +60,7 @@ export class PokerTable {
   private seatsReady = false;
   private history: string[] = [];
   private runoutGen = 0;
+  private emoteSeq = 0;
   private static readonly RUNOUT_PAUSE_MS = 900;
 
   constructor(private readonly notify: TableNotify) {}
@@ -85,6 +89,7 @@ export class PokerTable {
       playerId: null,
       name: null,
       cardBack: null,
+      emote: null,
       holes: emptyHoles(this.holes()),
       chips: STARTING_CHIPS,
       betStreet: 0,
@@ -189,6 +194,7 @@ export class PokerTable {
     seat.connectionId = connectionId;
     seat.name = null;
     seat.cardBack = null;
+    seat.emote = null;
     seat.holes = emptyHoles(this.holes());
     seat.chips = STARTING_CHIPS;
     seat.betStreet = 0;
@@ -409,6 +415,23 @@ export class PokerTable {
         this.notify();
         return;
       }
+      case "emote": {
+        const seat = this.seatIndexOf(connectionId);
+        if (seat < 0) throw new Error("Not seated");
+        if (!isEmoteId(msg.emote)) throw new Error("Invalid emote");
+        const s = this.seats[seat];
+        const now = Date.now();
+        if (s.emote && now - s.emote.at < EMOTE_COOLDOWN_MS) return;
+        const seq = ++this.emoteSeq;
+        s.emote = { id: msg.emote, seq, at: now };
+        this.notify();
+        setTimeout(() => {
+          if (s.emote?.seq !== seq) return;
+          s.emote = null;
+          this.notify();
+        }, EMOTE_DURATION_MS);
+        return;
+      }
       default:
         throw new Error("Unknown message");
     }
@@ -551,6 +574,9 @@ export class PokerTable {
       };
       if (occupiedSeat && s.name) pub.name = s.name;
       if (occupiedSeat) pub.cardBack = s.cardBack ?? "blue";
+      if (occupiedSeat && s.emote && Date.now() - s.emote.at < EMOTE_DURATION_MS) {
+        pub.emote = { id: s.emote.id, seq: s.emote.seq };
+      }
       if (!occupiedSeat || !s.inHand) return pub;
 
       // Own holes live in `yourHoles` only — avoid duplicating on the wire.

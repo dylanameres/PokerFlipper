@@ -1,6 +1,10 @@
 import type { CardBackId, RoomView, SeatPublic } from "../shared/protocol";
 import {
+  EMOTE_DURATION_MS,
+  EMOTE_IDS,
+  EMOTE_LABELS,
   isCardBackId,
+  isEmoteId,
   MAX_ONLINE_PLAYERS,
   MAX_PLAYER_NAME_LENGTH,
   MIN_ONLINE_PLAYERS,
@@ -361,11 +365,16 @@ function normalizeOnlineView(view: RoomView): RoomView {
   const seats: SeatPublic[] = (view.seats ?? []).map((s) => {
     const name = sanitizePlayerName(s.name ?? "");
     const cardBack = isCardBackId(s.cardBack) ? s.cardBack : undefined;
+    const emote =
+      s.emote && isEmoteId(s.emote.id) && typeof s.emote.seq === "number"
+        ? { id: s.emote.id, seq: s.emote.seq }
+        : undefined;
     return {
       filled: Boolean(s.filled),
       connected: Boolean(s.connected),
       ...(name ? { name } : {}),
       ...(cardBack ? { cardBack } : {}),
+      ...(emote ? { emote } : {}),
       chips: typeof s.chips === "number" ? s.chips : 0,
       bet: typeof s.bet === "number" ? s.bet : 0,
       folded: Boolean(s.folded),
@@ -465,6 +474,49 @@ function renderPotDisplay(
   `;
 }
 
+/**
+ * Local arrival time per emote seq. Every render rebuilds the DOM, so the
+ * bubble animation is offset by elapsed time instead of restarting.
+ */
+const emoteSeenAt = new Map<number, number>();
+
+/** Records newly arrived emotes; returns true if any are new. */
+function trackEmotes(view: RoomView): boolean {
+  const now = Date.now();
+  let fresh = false;
+  const live = new Set<number>();
+  for (const seat of view.seats) {
+    if (!seat.emote) continue;
+    live.add(seat.emote.seq);
+    if (!emoteSeenAt.has(seat.emote.seq)) {
+      emoteSeenAt.set(seat.emote.seq, now);
+      fresh = true;
+    }
+  }
+  for (const seq of emoteSeenAt.keys()) {
+    if (!live.has(seq)) emoteSeenAt.delete(seq);
+  }
+  return fresh;
+}
+
+function renderEmoteBubble(seat: SeatPublic | undefined): string {
+  if (!seat?.emote) return "";
+  const seenAt = emoteSeenAt.get(seat.emote.seq) ?? Date.now();
+  const elapsed = Math.min(EMOTE_DURATION_MS, Date.now() - seenAt);
+  return `<div class="seat__emote" role="status" style="--emote-ms: ${EMOTE_DURATION_MS}ms; animation-delay: -${elapsed}ms">${escapeHtml(
+    EMOTE_LABELS[seat.emote.id],
+  )}</div>`;
+}
+
+function renderEmoteBar(online: RoomView): string {
+  if (online.yourSeat === null) return "";
+  const buttons = EMOTE_IDS.map(
+    (id) =>
+      `<button type="button" class="btn btn--emote" data-emote="${id}">${escapeHtml(EMOTE_LABELS[id])}</button>`,
+  ).join("");
+  return `<div class="emote-bar" role="group" aria-label="Emotes">${buttons}</div>`;
+}
+
 function applyOnlineView(view: RoomView) {
   const prev = state.online;
   const normalized = normalizeOnlineView(view);
@@ -485,6 +537,9 @@ function applyOnlineView(view: RoomView) {
   // Your-turn cue on rising edge of canAct (skip first paint / reconnect spam).
   if (prev && !prev.canAct && normalized.canAct) {
     playSound("yourTurn", state.soundEnabled);
+  }
+  if (trackEmotes(normalized) && prev) {
+    playSound("emote", state.soundEnabled);
   }
 
   state.onlineSupportsBetting = typeof view.pot === "number";
@@ -1557,6 +1612,7 @@ function renderTable(): string {
 
       return `
         <div class="${seatClassFull}" style="${seatStyle(layoutIndex, state.playerCount)}" data-seat="${i}">
+          ${renderEmoteBubble(seatInfo)}
           ${roleBadges ? `<div class="seat__badges">${roleBadges}</div>` : ""}
           <div class="seat__cards">
             ${
@@ -1758,6 +1814,7 @@ function renderTable(): string {
         </div>
 
         ${online ? renderBettingBar(online) : ""}
+        ${online ? renderEmoteBar(online) : ""}
 
         <div class="actions">
           <button type="button" class="btn btn--primary" id="btn-deal-holes" ${
@@ -2098,6 +2155,15 @@ function bindEvents() {
     const input = document.getElementById("bet-amount") as HTMLInputElement | null;
     const amount = Number(input?.value ?? 0);
     sendOnline({ type: "bet", amount });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>("[data-emote]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const emote = btn.dataset.emote;
+      if (!isEmoteId(emote)) return;
+      unlockAudio();
+      sendOnline({ type: "emote", emote });
+    });
   });
 
   document.querySelectorAll<HTMLButtonElement>("[data-outs]").forEach((btn) => {

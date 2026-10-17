@@ -21,8 +21,9 @@ export const MIN_BET = BIG_BLIND;
  * 10 = zomba card back.
  * 11 = inferno card back replaces felt.
  * 12 = treasure card back replaces inferno.
+ * 13 = seat emotes (emote).
  */
-export const ROOM_PROTOCOL = 12;
+export const ROOM_PROTOCOL = 13;
 
 /** Face-down card back designs shared by client + room server. */
 export const CARD_BACK_IDS = [
@@ -41,6 +42,27 @@ export type CardBackId = (typeof CARD_BACK_IDS)[number];
 
 export function isCardBackId(v: unknown): v is CardBackId {
   return (CARD_BACK_IDS as readonly unknown[]).includes(v);
+}
+
+/** Quick table emotes shown as a chat bubble over the sender's seat. */
+export const EMOTE_IDS = ["gg", "haha", "ship_it", "all_in"] as const;
+
+export type EmoteId = (typeof EMOTE_IDS)[number];
+
+export const EMOTE_LABELS: Record<EmoteId, string> = {
+  gg: "GG",
+  haha: "Haha",
+  ship_it: "Ship it",
+  all_in: "All in",
+};
+
+/** How long an emote bubble stays up. */
+export const EMOTE_DURATION_MS = 3500;
+/** Minimum gap between emotes from one seat (anti-spam). */
+export const EMOTE_COOLDOWN_MS = 750;
+
+export function isEmoteId(v: unknown): v is EmoteId {
+  return (EMOTE_IDS as readonly unknown[]).includes(v);
 }
 
 /** Max seats in an online room (Hold'em-friendly). */
@@ -77,7 +99,14 @@ export type ClientMessage =
   | { type: "call" }
   | { type: "bet"; amount: number }
   | { type: "set_name"; name: string }
-  | { type: "set_card_back"; cardBack: CardBackId };
+  | { type: "set_card_back"; cardBack: CardBackId }
+  | { type: "emote"; emote: EmoteId };
+
+/** Active emote bubble on a seat. `seq` changes on every new emote. */
+export interface SeatEmote {
+  id: EmoteId;
+  seq: number;
+}
 
 export interface SeatPublic {
   filled: boolean;
@@ -86,6 +115,8 @@ export interface SeatPublic {
   name?: string;
   /** Face-down hole-card back for this seat (default blue). */
   cardBack?: CardBackId;
+  /** Present while this seat's emote bubble is up. */
+  emote?: SeatEmote;
   chips: number;
   bet: number;
   folded: boolean;

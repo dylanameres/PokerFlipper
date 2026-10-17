@@ -1,6 +1,6 @@
 /** Lightweight Web Audio cues for online play (no asset files). */
 
-export type SoundId = "fold" | "bet" | "yourTurn";
+export type SoundId = "fold" | "bet" | "yourTurn" | "emote";
 
 let ctx: AudioContext | null = null;
 let unlocked = false;
@@ -150,6 +150,15 @@ export function playSound(id: SoundId, enabled: boolean): void {
         type: "sine",
         gain: 0.03,
         when: 0.02,
+      });
+      break;
+    case "emote":
+      tone(audio, {
+        freq: 660,
+        freqEnd: 990,
+        duration: 0.07,
+        type: "sine",
+        gain: 0.04,
       });
       break;
   }
