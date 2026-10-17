@@ -524,8 +524,10 @@ function renderEmoteBar(online: RoomView): string {
     : "";
   return `
     <div class="emote-bar">
-      ${menu}
-      <button type="button" class="btn btn--emote${open ? " btn--emote-open" : ""}" id="btn-emote" aria-haspopup="menu" aria-expanded="${open}" aria-controls="emote-menu">Emote</button>
+      <div class="emote-bar__anchor">
+        <button type="button" class="btn btn--emote${open ? " btn--emote-open" : ""}" id="btn-emote" aria-haspopup="menu" aria-expanded="${open}" aria-controls="emote-menu">Emote</button>
+        ${menu}
+      </div>
     </div>
   `;
 }
