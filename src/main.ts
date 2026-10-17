@@ -5,6 +5,7 @@ import {
   EMOTE_LABELS,
   isCardBackId,
   isEmoteId,
+  isSeatBubbleId,
   MAX_ONLINE_PLAYERS,
   MAX_PLAYER_NAME_LENGTH,
   MIN_ONLINE_PLAYERS,
@@ -369,7 +370,7 @@ function normalizeOnlineView(view: RoomView): RoomView {
     const name = sanitizePlayerName(s.name ?? "");
     const cardBack = isCardBackId(s.cardBack) ? s.cardBack : undefined;
     const emote =
-      s.emote && isEmoteId(s.emote.id) && typeof s.emote.seq === "number"
+      s.emote && isSeatBubbleId(s.emote.id) && typeof s.emote.seq === "number"
         ? { id: s.emote.id, seq: s.emote.seq }
         : undefined;
     return {
@@ -506,7 +507,8 @@ function renderEmoteBubble(seat: SeatPublic | undefined): string {
   if (!seat?.emote) return "";
   const seenAt = emoteSeenAt.get(seat.emote.seq) ?? Date.now();
   const elapsed = Math.min(EMOTE_DURATION_MS, Date.now() - seenAt);
-  return `<div class="seat__emote" role="status" style="--emote-ms: ${EMOTE_DURATION_MS}ms; animation-delay: -${elapsed}ms">${escapeHtml(
+  const allIn = seat.emote.id === "all_in" ? " seat__emote--all-in" : "";
+  return `<div class="seat__emote${allIn}" role="status" style="--emote-ms: ${EMOTE_DURATION_MS}ms; animation-delay: -${elapsed}ms">${escapeHtml(
     EMOTE_LABELS[seat.emote.id],
   )}</div>`;
 }

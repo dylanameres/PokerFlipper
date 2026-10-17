@@ -22,8 +22,9 @@ export const MIN_BET = BIG_BLIND;
  * 11 = inferno card back replaces felt.
  * 12 = treasure card back replaces inferno.
  * 13 = seat emotes (emote).
+ * 14 = nice_hand emote replaces all_in; server raises all_in bubbles.
  */
-export const ROOM_PROTOCOL = 13;
+export const ROOM_PROTOCOL = 14;
 
 /** Face-down card back designs shared by client + room server. */
 export const CARD_BACK_IDS = [
@@ -45,14 +46,18 @@ export function isCardBackId(v: unknown): v is CardBackId {
 }
 
 /** Quick table emotes shown as a chat bubble over the sender's seat. */
-export const EMOTE_IDS = ["gg", "haha", "ship_it", "all_in"] as const;
+export const EMOTE_IDS = ["gg", "haha", "ship_it", "nice_hand"] as const;
 
 export type EmoteId = (typeof EMOTE_IDS)[number];
 
-export const EMOTE_LABELS: Record<EmoteId, string> = {
+/** Seat bubbles: player emotes plus ones only the room server raises. */
+export type SeatBubbleId = EmoteId | "all_in";
+
+export const EMOTE_LABELS: Record<SeatBubbleId, string> = {
   gg: "GG",
   haha: "Haha",
   ship_it: "Ship it",
+  nice_hand: "Nice Hand",
   all_in: "All in",
 };
 
@@ -63,6 +68,10 @@ export const EMOTE_COOLDOWN_MS = 750;
 
 export function isEmoteId(v: unknown): v is EmoteId {
   return (EMOTE_IDS as readonly unknown[]).includes(v);
+}
+
+export function isSeatBubbleId(v: unknown): v is SeatBubbleId {
+  return v === "all_in" || isEmoteId(v);
 }
 
 /** Max seats in an online room (Hold'em-friendly). */
@@ -104,7 +113,7 @@ export type ClientMessage =
 
 /** Active emote bubble on a seat. `seq` changes on every new emote. */
 export interface SeatEmote {
-  id: EmoteId;
+  id: SeatBubbleId;
   seq: number;
 }
 
