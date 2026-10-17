@@ -37,6 +37,7 @@ import {
   type Card,
   type GameType,
 } from "./poker";
+import { playSound, unlockAudio } from "./sounds";
 
 type Screen = "setup" | "table";
 type Street = "predeal" | "holes" | "flop" | "turn" | "river";
@@ -67,6 +68,8 @@ interface AppState {
   largeCards: boolean;
   /** Face-down card back design. */
   cardBack: CardBackId;
+  /** Online table SFX (bet / fold / your turn). */
+  soundEnabled: boolean;
   /** Online multiplayer view from room server (null in solo). */
   online: RoomView | null;
   /** False when connected to a room server that predates chip betting. */
@@ -107,6 +110,7 @@ interface SavedSettings {
   showEquity: boolean;
   largeCards: boolean;
   cardBack: CardBackId;
+  soundEnabled: boolean;
 }
 
 function loadSettings(): SavedSettings {
@@ -115,6 +119,7 @@ function loadSettings(): SavedSettings {
     showEquity: true,
     largeCards: false,
     cardBack: "blue",
+    soundEnabled: true,
   };
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
@@ -125,6 +130,7 @@ function loadSettings(): SavedSettings {
       showEquity: parsed.showEquity !== false,
       largeCards: Boolean(parsed.largeCards),
       cardBack: isCardBackId(parsed.cardBack) ? parsed.cardBack : "blue",
+      soundEnabled: parsed.soundEnabled !== false,
     };
   } catch {
     return defaults;
@@ -140,6 +146,7 @@ function saveSettings() {
         showEquity: state.showEquity,
         largeCards: state.largeCards,
         cardBack: state.cardBack,
+        soundEnabled: state.soundEnabled,
       } satisfies SavedSettings),
     );
   } catch {
@@ -167,6 +174,7 @@ const state: AppState = {
   showEquity: saved.showEquity,
   largeCards: saved.largeCards,
   cardBack: saved.cardBack,
+  soundEnabled: saved.soundEnabled,
   online: null,
   onlineSupportsBetting: true,
   roomCode: "",
@@ -411,6 +419,11 @@ function applyOnlineView(view: RoomView) {
     state.handsDealtCount += 1;
     // Same seat slots as the prior hand — clear so redeal fly-ins run again.
     resetDealAnimationState();
+  }
+
+  // Your-turn cue on rising edge of canAct (skip first paint / reconnect spam).
+  if (prev && !prev.canAct && normalized.canAct) {
+    playSound("yourTurn", state.soundEnabled);
   }
 
   state.onlineSupportsBetting = typeof view.pot === "number";
@@ -789,6 +802,12 @@ function renderSettingsPanel(): string {
             "Large cards",
             "Bigger card faces on the table",
             state.largeCards,
+          )}
+          ${settingsSwitchRow(
+            "soundEnabled",
+            "Table sounds",
+            "Bet, fold, and your-turn cues in online mode",
+            state.soundEnabled,
           )}
           ${renderCardBackPicker()}
         </div>
@@ -1711,10 +1730,15 @@ function render() {
   }
 }
 
-function toggleSetting(key: "fourColorDeck" | "showEquity" | "largeCards") {
+function toggleSetting(
+  key: "fourColorDeck" | "showEquity" | "largeCards" | "soundEnabled",
+) {
   state[key] = !state[key];
   if (key === "showEquity" && !state.showEquity) {
     state.outsSeat = null;
+  }
+  if (key === "soundEnabled" && state.soundEnabled) {
+    unlockAudio();
   }
   saveSettings();
   render();
@@ -1742,7 +1766,8 @@ function bindSettingsEvents() {
       const key = btn.dataset.setting as
         | "fourColorDeck"
         | "showEquity"
-        | "largeCards";
+        | "largeCards"
+        | "soundEnabled";
       toggleSetting(key);
     });
   });
@@ -1839,9 +1864,13 @@ function bindEvents() {
     ?.addEventListener("click", dealRiver);
 
   document.getElementById("btn-fold")?.addEventListener("click", () => {
+    unlockAudio();
+    playSound("fold", state.soundEnabled);
     sendOnline({ type: "fold" });
   });
   document.getElementById("btn-call")?.addEventListener("click", () => {
+    unlockAudio();
+    playSound("bet", state.soundEnabled);
     sendOnline({ type: "call" });
   });
   document.querySelectorAll<HTMLButtonElement>("[data-bet-preset]").forEach((btn) => {
@@ -1855,6 +1884,8 @@ function bindEvents() {
     });
   });
   document.getElementById("btn-bet")?.addEventListener("click", () => {
+    unlockAudio();
+    playSound("bet", state.soundEnabled);
     const input = document.getElementById("bet-amount") as HTMLInputElement | null;
     const amount = Number(input?.value ?? 0);
     sendOnline({ type: "bet", amount });
