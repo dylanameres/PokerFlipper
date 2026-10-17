@@ -15,13 +15,32 @@ export const MIN_BET = BIG_BLIND;
 /**
  * Bump when the room server wire format changes in a breaking/feature way.
  * 6 = side pots + browser playerId seat reclaim.
+ * 7 = per-seat display names (set_name).
  */
-export const ROOM_PROTOCOL = 6;
+export const ROOM_PROTOCOL = 7;
 
 /** Max seats in an online room (Hold'em-friendly). */
 export const MAX_ONLINE_PLAYERS = 6;
 /** Host may deal once this many players are seated. */
 export const MIN_ONLINE_PLAYERS = 2;
+
+/** Max length for an online display name (after trim). */
+export const MAX_PLAYER_NAME_LENGTH = 120;
+
+/**
+ * Normalize a player display name for the wire.
+ * Returns null when empty / whitespace-only after cleanup.
+ */
+export function sanitizePlayerName(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const cleaned = raw
+    .normalize("NFC")
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, MAX_PLAYER_NAME_LENGTH);
+  return cleaned.length > 0 ? cleaned : null;
+}
 
 export type ClientMessage =
   | { type: "hello"; gameType: GameType; playerId?: string }
@@ -32,11 +51,14 @@ export type ClientMessage =
   | { type: "new_round" }
   | { type: "fold" }
   | { type: "call" }
-  | { type: "bet"; amount: number };
+  | { type: "bet"; amount: number }
+  | { type: "set_name"; name: string };
 
 export interface SeatPublic {
   filled: boolean;
   connected: boolean;
+  /** Optional display name (max 120). Absent/empty → clients fall back to P{n}. */
+  name?: string;
   chips: number;
   bet: number;
   folded: boolean;

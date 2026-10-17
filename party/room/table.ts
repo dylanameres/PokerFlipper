@@ -7,6 +7,7 @@ import {
   ROOM_PROTOCOL,
   SMALL_BLIND,
   STARTING_CHIPS,
+  sanitizePlayerName,
   type ClientMessage,
   type GameType,
   type PotPublic,
@@ -81,6 +82,7 @@ export class PokerTable {
     return {
       connectionId: null,
       playerId: null,
+      name: null,
       holes: emptyHoles(this.holes()),
       chips: STARTING_CHIPS,
       betStreet: 0,
@@ -183,6 +185,7 @@ export class PokerTable {
     const seat = this.seats[seatIndex];
     seat.playerId = pid;
     seat.connectionId = connectionId;
+    seat.name = null;
     seat.holes = emptyHoles(this.holes());
     seat.chips = STARTING_CHIPS;
     seat.betStreet = 0;
@@ -386,6 +389,15 @@ export class PokerTable {
         if (this.afterAction()) this.notify();
         return;
       }
+      case "set_name": {
+        const seat = this.seatIndexOf(connectionId);
+        if (seat < 0) throw new Error("Not seated");
+        const name = sanitizePlayerName(msg.name);
+        if (!name) throw new Error("Name must be 1–120 characters");
+        this.seats[seat].name = name;
+        this.notify();
+        return;
+      }
       default:
         throw new Error("Unknown message");
     }
@@ -482,7 +494,9 @@ export class PokerTable {
       else if (this.winnerSeats.length === 1) {
         const w = this.winnerSeats[0];
         status =
-          yourSeat === w ? "You win the pot." : `P${w + 1} wins the pot.`;
+          yourSeat === w
+            ? "You win the pot."
+            : `${this.seatLabel(w)} wins the pot.`;
       } else {
         status = "Hand over.";
       }
@@ -492,7 +506,7 @@ export class PokerTable {
           ? toCall > 0
             ? `Your turn — ${toCall} to call.`
             : "Your turn — check or bet."
-          : `Waiting for P${this.actionSeat + 1}…`;
+          : `Waiting for ${this.seatLabel(this.actionSeat)}…`;
     } else if (
       !this.bettingOpen &&
       !this.handOver &&
@@ -524,6 +538,7 @@ export class PokerTable {
         isSmallBlind: tableLive && occupiedSeat && i === sb,
         isBigBlind: tableLive && occupiedSeat && i === bb,
       };
+      if (occupiedSeat && s.name) pub.name = s.name;
       if (!occupiedSeat || !s.inHand) return pub;
 
       // Own holes live in `yourHoles` only — avoid duplicating on the wire.
@@ -627,7 +642,17 @@ export class PokerTable {
     return this.seatLeftOfFilled(this.smallBlindSeat());
   }
 
+  /** Live status / waiting text — prefers the player's display name. */
   private seatLabel(seat: number): string {
+    const name = this.seats[seat]?.name?.trim();
+    return name || `P${seat + 1}`;
+  }
+
+  /**
+   * Stable Pn tokens for history so clients can personalize + color wins/losses
+   * even after a rename.
+   */
+  private historySeatLabel(seat: number): string {
     return `P${seat + 1}`;
   }
 
@@ -643,7 +668,7 @@ export class PokerTable {
     if (winners.length >= 2) {
       result = `Chop ${pot}`;
     } else if (winners.length === 1) {
-      result = `${this.seatLabel(winners[0])} wins ${pot}`;
+      result = `${this.historySeatLabel(winners[0])} wins ${pot}`;
     } else {
       result = `Pot ${pot}`;
     }
@@ -665,7 +690,7 @@ export class PokerTable {
     }
     const parts = [...bySeat.entries()]
       .sort((a, b) => a[0] - b[0])
-      .map(([seat, amount]) => `${this.seatLabel(seat)} wins ${amount}`);
+      .map(([seat, amount]) => `${this.historySeatLabel(seat)} wins ${amount}`);
     this.pushHistory(`#${this.handsDealt} ${parts.join(" · ")}`);
   }
 

@@ -1,7 +1,9 @@
 import type { RoomView, SeatPublic } from "../shared/protocol";
 import {
   MAX_ONLINE_PLAYERS,
+  MAX_PLAYER_NAME_LENGTH,
   MIN_ONLINE_PLAYERS,
+  sanitizePlayerName,
 } from "../shared/protocol";
 import {
   newDealKeys,
@@ -35,6 +37,7 @@ import {
   type Card,
   type GameType,
 } from "./poker";
+import { playSound, unlockAudio } from "./sounds";
 
 type Screen = "setup" | "table";
 type Street = "predeal" | "holes" | "flop" | "turn" | "river";
@@ -65,6 +68,8 @@ interface AppState {
   largeCards: boolean;
   /** Face-down card back design. */
   cardBack: CardBackId;
+  /** Online table SFX (bet / fold / your turn). */
+  soundEnabled: boolean;
   /** Online multiplayer view from room server (null in solo). */
   online: RoomView | null;
   /** False when connected to a room server that predates chip betting. */
@@ -74,9 +79,16 @@ interface AppState {
   onlineError: string | null;
   /** How many times hole cards have been dealt this table session. */
   handsDealtCount: number;
+  /** Online: rename dialog open. */
+  renameOpen: boolean;
+  /** Online: draft text in the rename dialog. */
+  renameDraft: string;
+  /** Online: already pushed localStorage preferred name this session. */
+  preferredNameSynced: boolean;
 }
 
 const SETTINGS_KEY = "pokerflipper-settings";
+const PLAYER_NAME_KEY = "pokerflipper-display-name";
 
 type CardBackId = "blue" | "red" | "arcane" | "rainbow";
 
@@ -98,6 +110,7 @@ interface SavedSettings {
   showEquity: boolean;
   largeCards: boolean;
   cardBack: CardBackId;
+  soundEnabled: boolean;
 }
 
 function loadSettings(): SavedSettings {
@@ -106,6 +119,7 @@ function loadSettings(): SavedSettings {
     showEquity: true,
     largeCards: false,
     cardBack: "blue",
+    soundEnabled: true,
   };
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
@@ -116,6 +130,7 @@ function loadSettings(): SavedSettings {
       showEquity: parsed.showEquity !== false,
       largeCards: Boolean(parsed.largeCards),
       cardBack: isCardBackId(parsed.cardBack) ? parsed.cardBack : "blue",
+      soundEnabled: parsed.soundEnabled !== false,
     };
   } catch {
     return defaults;
@@ -131,6 +146,7 @@ function saveSettings() {
         showEquity: state.showEquity,
         largeCards: state.largeCards,
         cardBack: state.cardBack,
+        soundEnabled: state.soundEnabled,
       } satisfies SavedSettings),
     );
   } catch {
@@ -158,13 +174,52 @@ const state: AppState = {
   showEquity: saved.showEquity,
   largeCards: saved.largeCards,
   cardBack: saved.cardBack,
+  soundEnabled: saved.soundEnabled,
   online: null,
   onlineSupportsBetting: true,
   roomCode: "",
   joinCode: "",
   onlineError: null,
   handsDealtCount: 0,
+  renameOpen: false,
+  renameDraft: "",
+  preferredNameSynced: false,
 };
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function loadPreferredName(): string | null {
+  try {
+    return sanitizePlayerName(localStorage.getItem(PLAYER_NAME_KEY) ?? "");
+  } catch {
+    return null;
+  }
+}
+
+function savePreferredName(name: string) {
+  try {
+    localStorage.setItem(PLAYER_NAME_KEY, name);
+  } catch {
+    // ignore quota / private-mode failures
+  }
+}
+
+/** Seat label for table UI: custom name, else You / Pn. */
+function seatDisplayName(
+  seatIndex: number,
+  online: RoomView | null,
+  isYou: boolean,
+): string {
+  const custom = online?.seats[seatIndex]?.name?.trim();
+  if (custom) return custom;
+  return isYou ? "You" : `P${seatIndex + 1}`;
+}
 
 function emptyBoard(): (Card | null)[] {
   return [null, null, null, null, null];
@@ -250,21 +305,27 @@ function startSoloTable() {
 
 function normalizeOnlineView(view: RoomView): RoomView {
   // Older Workers deploys omit chip/betting fields — fill defaults so render never throws.
-  const seats: SeatPublic[] = (view.seats ?? []).map((s) => ({
-    filled: Boolean(s.filled),
-    connected: Boolean(s.connected),
-    chips: typeof s.chips === "number" ? s.chips : 0,
-    bet: typeof s.bet === "number" ? s.bet : 0,
-    folded: Boolean(s.folded),
-    inHand: s.inHand !== undefined ? Boolean(s.inHand) : Boolean(s.filled),
-    isButton: Boolean(s.isButton),
-    isSmallBlind: Boolean(s.isSmallBlind),
-    isBigBlind: Boolean(s.isBigBlind),
-    holeHidden: Array.isArray(s.holeHidden)
-      ? s.holeHidden.map(Boolean)
-      : undefined,
-    holes: Array.isArray(s.holes) ? s.holes.map((c) => c) : s.holes ?? undefined,
-  }));
+  const seats: SeatPublic[] = (view.seats ?? []).map((s) => {
+    const name = sanitizePlayerName(s.name ?? "");
+    return {
+      filled: Boolean(s.filled),
+      connected: Boolean(s.connected),
+      ...(name ? { name } : {}),
+      chips: typeof s.chips === "number" ? s.chips : 0,
+      bet: typeof s.bet === "number" ? s.bet : 0,
+      folded: Boolean(s.folded),
+      inHand: s.inHand !== undefined ? Boolean(s.inHand) : Boolean(s.filled),
+      isButton: Boolean(s.isButton),
+      isSmallBlind: Boolean(s.isSmallBlind),
+      isBigBlind: Boolean(s.isBigBlind),
+      holeHidden: Array.isArray(s.holeHidden)
+        ? s.holeHidden.map(Boolean)
+        : undefined,
+      holes: Array.isArray(s.holes)
+        ? s.holes.map((c) => c)
+        : s.holes ?? undefined,
+    };
+  });
   // Pad to table capacity so layout stays stable as players join.
   const capacity = view.maxSeats ?? Math.max(seats.length, MAX_ONLINE_PLAYERS);
   while (seats.length < capacity) {
@@ -366,6 +427,11 @@ function applyOnlineView(view: RoomView) {
     resetDealAnimationState();
   }
 
+  // Your-turn cue on rising edge of canAct (skip first paint / reconnect spam).
+  if (prev && !prev.canAct && normalized.canAct) {
+    playSound("yourTurn", state.soundEnabled);
+  }
+
   state.onlineSupportsBetting = typeof view.pot === "number";
   state.online = normalized;
   state.mode = "online";
@@ -410,6 +476,23 @@ function applyOnlineView(view: RoomView) {
   state.equities = null;
   state.outsSeat = null;
   state.screen = "table";
+
+  // Push saved display name once per room session after we have a seat.
+  if (
+    !state.preferredNameSynced &&
+    normalized.yourSeat !== null &&
+    state.onlineSupportsBetting
+  ) {
+    const preferred = loadPreferredName();
+    const current = normalized.seats[normalized.yourSeat]?.name ?? null;
+    if (preferred && preferred !== current) {
+      state.preferredNameSynced = true;
+      sendOnline({ type: "set_name", name: preferred });
+    } else if (preferred) {
+      state.preferredNameSynced = true;
+    }
+  }
+
   render();
 
   // Host fallback: if the room is stuck with bettingComplete (older server, or
@@ -448,6 +531,9 @@ function startOnline(roomCode: string) {
   state.outsSeat = null;
   state.picking = null;
   state.handsDealtCount = 0;
+  state.renameOpen = false;
+  state.renameDraft = loadPreferredName() ?? "";
+  state.preferredNameSynced = false;
   render();
 
   connectOnline(state.roomCode, state.gameType, {
@@ -610,6 +696,8 @@ function backToSetup() {
   state.outsSeat = null;
   state.picking = null;
   state.handsDealtCount = 0;
+  state.renameOpen = false;
+  state.preferredNameSynced = false;
   resetDealAnimationState();
   render();
 }
@@ -721,8 +809,95 @@ function renderSettingsPanel(): string {
             "Bigger card faces on the table",
             state.largeCards,
           )}
+          ${settingsSwitchRow(
+            "soundEnabled",
+            "Table sounds",
+            "Bet, fold, and your-turn cues in online mode",
+            state.soundEnabled,
+          )}
           ${renderCardBackPicker()}
         </div>
+      </div>
+    </div>
+  `;
+}
+
+function openRenameDialog() {
+  if (state.mode !== "online" || !state.online || state.online.yourSeat === null) {
+    return;
+  }
+  const seat = state.online.seats[state.online.yourSeat];
+  state.renameDraft =
+    seat?.name?.trim() || loadPreferredName() || "";
+  state.renameOpen = true;
+  render();
+  queueMicrotask(() => {
+    const input = document.getElementById(
+      "rename-input",
+    ) as HTMLInputElement | null;
+    input?.focus();
+    input?.select();
+  });
+}
+
+function closeRenameDialog() {
+  state.renameOpen = false;
+  render();
+}
+
+function submitRename() {
+  const input = document.getElementById(
+    "rename-input",
+  ) as HTMLInputElement | null;
+  const raw = input?.value ?? state.renameDraft;
+  const name = sanitizePlayerName(raw);
+  if (!name) {
+    state.onlineError = "Name must be 1–120 characters";
+    render();
+    return;
+  }
+  state.renameDraft = name;
+  savePreferredName(name);
+  state.preferredNameSynced = true;
+  state.renameOpen = false;
+  state.onlineError = null;
+  if (!sendOnline({ type: "set_name", name })) {
+    state.onlineError = "Not connected — try renaming again in a moment";
+    state.renameOpen = true;
+  }
+  render();
+}
+
+function renderRenamePanel(): string {
+  if (!state.renameOpen || state.mode !== "online") return "";
+  const value = escapeHtml(state.renameDraft);
+  return `
+    <div class="settings-backdrop" id="rename-backdrop">
+      <div class="settings-panel rename-panel" id="rename-panel" role="dialog" aria-modal="true" aria-labelledby="rename-title">
+        <header class="settings__head">
+          <h2 id="rename-title">Your name</h2>
+          <button type="button" class="outs__close" id="btn-close-rename" aria-label="Close">×</button>
+        </header>
+        <form id="rename-form" class="rename-form">
+          <label class="rename-form__label" for="rename-input">
+            Shown to everyone at the table
+          </label>
+          <input
+            id="rename-input"
+            class="rename-form__input"
+            type="text"
+            maxlength="${MAX_PLAYER_NAME_LENGTH}"
+            autocomplete="nickname"
+            spellcheck="false"
+            value="${value}"
+            placeholder="e.g. RiverRat"
+          />
+          <p class="rename-form__hint">1–${MAX_PLAYER_NAME_LENGTH} characters</p>
+          <div class="rename-form__actions">
+            <button type="button" class="btn btn--ghost" id="btn-cancel-rename">Cancel</button>
+            <button type="submit" class="btn btn--primary" id="btn-save-rename">Save</button>
+          </div>
+        </form>
       </div>
     </div>
   `;
@@ -942,10 +1117,29 @@ function renderBettingBar(online: RoomView): string {
   `;
 }
 
-function personalizeHistoryLine(line: string, yourSeat: number | null): string {
-  if (yourSeat === null) return line;
-  const yours = `P${yourSeat + 1}`;
-  return line
+function personalizeHistoryLine(
+  line: string,
+  online: RoomView,
+): string {
+  let text = line;
+  // Replace higher seat numbers first so P10 is not eaten by P1.
+  for (let i = online.seats.length - 1; i >= 0; i--) {
+    const token = `P${i + 1}`;
+    const name = online.seats[i]?.name?.trim();
+    if (!name || !text.includes(token)) continue;
+    text = text.split(token).join(name);
+  }
+  if (online.yourSeat === null) return text;
+  const yours = `P${online.yourSeat + 1}`;
+  const yourName = online.seats[online.yourSeat]?.name?.trim();
+  if (yourName) {
+    return text
+      .split(`${yourName} wins`)
+      .join("You win")
+      .split(yourName)
+      .join("You");
+  }
+  return text
     .split(`${yours} wins`)
     .join("You win")
     .split(yours)
@@ -972,7 +1166,7 @@ function renderHistorySidebar(online: RoomView): string {
       ? `<p class="history__empty">Finished hands show up here.</p>`
       : `<ol class="history__list">${lines
           .map((line) => {
-            const text = personalizeHistoryLine(line, online.yourSeat);
+            const text = escapeHtml(personalizeHistoryLine(line, online));
             const tone = historyLineTone(line, online.yourSeat);
             const toneClass =
               tone === "win"
@@ -1267,9 +1461,9 @@ function renderTable(): string {
           <div class="seat__label">${
             emptyOnline
               ? "Empty"
-              : isYou
-                ? "You"
-                : `P${i + 1}`
+              : `${escapeHtml(seatDisplayName(i, online, isYou))}${
+                  isYou && online?.seats[i]?.name ? " (you)" : ""
+                }`
           }${
             sittingOut
               ? " (out)"
@@ -1361,14 +1555,14 @@ function renderTable(): string {
             }
             ${
               online
-                ? `<p class="meta">${online.status}</p>`
+                ? `<p class="meta">${escapeHtml(online.status)}</p>`
                 : state.mode === "online"
                   ? `<p class="meta">Connecting to room…</p>`
                   : ""
             }
             ${
               state.onlineError
-                ? `<p class="error">${state.onlineError}</p>`
+                ? `<p class="error">${escapeHtml(state.onlineError)}</p>`
                 : ""
             }
             ${
@@ -1380,6 +1574,11 @@ function renderTable(): string {
             }
           </div>
           <div class="table-bar__actions">
+            ${
+              online && online.yourSeat !== null
+                ? `<button type="button" class="btn btn--ghost" id="btn-rename">Rename</button>`
+                : ""
+            }
             ${renderGearButton()}
             <button type="button" class="btn btn--ghost" id="btn-setup">Setup</button>
           </div>
@@ -1522,7 +1721,7 @@ function render() {
     state.screen === "table" ? currentDealKeys() : ([] as string[]);
   const incoming = state.screen === "table" ? newDealKeys(dealKeys) : [];
   const page = state.screen === "setup" ? renderSetup() : renderTable();
-  root.innerHTML = page + renderSettingsPanel();
+  root.innerHTML = page + renderSettingsPanel() + renderRenamePanel();
   bindEvents();
   if (state.screen === "table") {
     rememberDealKeys(dealKeys);
@@ -1545,10 +1744,15 @@ function render() {
   }
 }
 
-function toggleSetting(key: "fourColorDeck" | "showEquity" | "largeCards") {
+function toggleSetting(
+  key: "fourColorDeck" | "showEquity" | "largeCards" | "soundEnabled",
+) {
   state[key] = !state[key];
   if (key === "showEquity" && !state.showEquity) {
     state.outsSeat = null;
+  }
+  if (key === "soundEnabled" && state.soundEnabled) {
+    unlockAudio();
   }
   saveSettings();
   render();
@@ -1576,7 +1780,8 @@ function bindSettingsEvents() {
       const key = btn.dataset.setting as
         | "fourColorDeck"
         | "showEquity"
-        | "largeCards";
+        | "largeCards"
+        | "soundEnabled";
       toggleSetting(key);
     });
   });
@@ -1649,6 +1854,22 @@ function bindEvents() {
   }
 
   document.getElementById("btn-setup")?.addEventListener("click", backToSetup);
+  document.getElementById("btn-rename")?.addEventListener("click", openRenameDialog);
+  document.getElementById("btn-close-rename")?.addEventListener("click", closeRenameDialog);
+  document.getElementById("btn-cancel-rename")?.addEventListener("click", closeRenameDialog);
+  document.getElementById("rename-backdrop")?.addEventListener("click", (e) => {
+    if (e.target === e.currentTarget) closeRenameDialog();
+  });
+  document.getElementById("rename-panel")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+  });
+  document.getElementById("rename-input")?.addEventListener("input", (e) => {
+    state.renameDraft = (e.target as HTMLInputElement).value;
+  });
+  document.getElementById("rename-form")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    submitRename();
+  });
   document.getElementById("btn-deal-holes")?.addEventListener("click", dealHoles);
   document.getElementById("btn-deal-flop")?.addEventListener("click", dealFlop);
   document.getElementById("btn-deal-turn")?.addEventListener("click", dealTurn);
@@ -1657,9 +1878,13 @@ function bindEvents() {
     ?.addEventListener("click", dealRiver);
 
   document.getElementById("btn-fold")?.addEventListener("click", () => {
+    unlockAudio();
+    playSound("fold", state.soundEnabled);
     sendOnline({ type: "fold" });
   });
   document.getElementById("btn-call")?.addEventListener("click", () => {
+    unlockAudio();
+    playSound("bet", state.soundEnabled);
     sendOnline({ type: "call" });
   });
   document.querySelectorAll<HTMLButtonElement>("[data-bet-preset]").forEach((btn) => {
@@ -1673,6 +1898,8 @@ function bindEvents() {
     });
   });
   document.getElementById("btn-bet")?.addEventListener("click", () => {
+    unlockAudio();
+    playSound("bet", state.soundEnabled);
     const input = document.getElementById("bet-amount") as HTMLInputElement | null;
     const amount = Number(input?.value ?? 0);
     sendOnline({ type: "bet", amount });

@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   BIG_BLIND,
   MAX_ONLINE_PLAYERS,
+  MAX_PLAYER_NAME_LENGTH,
   MIN_ONLINE_PLAYERS,
   ROOM_PROTOCOL,
   SMALL_BLIND,
   STARTING_CHIPS,
+  sanitizePlayerName,
 } from "../../shared/protocol";
 import { PokerTable } from "./table";
 
@@ -303,5 +305,43 @@ describe("PokerTable multiplayer framework", () => {
       { amount: 150, eligible: [0, 1, 2] },
       { amount: 100, eligible: [1, 2] },
     ]);
+  });
+
+  it("lets a seated player set a display name up to 120 chars", () => {
+    const { table, ids } = seatedTable(2);
+    expect(ROOM_PROTOCOL).toBeGreaterThanOrEqual(7);
+    table.handle({ type: "set_name", name: "  Ace   High  " }, ids[0]);
+    const v0 = table.viewFor(ids[0], "NAME");
+    const v1 = table.viewFor(ids[1], "NAME");
+    expect(v0.seats[0].name).toBe("Ace High");
+    expect(v1.seats[0].name).toBe("Ace High");
+    expect(v0.seats[1].name).toBeUndefined();
+
+    const long = "x".repeat(MAX_PLAYER_NAME_LENGTH + 40);
+    table.handle({ type: "set_name", name: long }, ids[1]);
+    expect(table.viewFor(ids[0], "NAME").seats[1].name).toBe(
+      "x".repeat(MAX_PLAYER_NAME_LENGTH),
+    );
+
+    expect(() =>
+      table.handle({ type: "set_name", name: "   " }, ids[0]),
+    ).toThrow(/1–120/i);
+  });
+
+  it("keeps a display name across reconnect reclaim", () => {
+    const { table, ids, playerIds } = seatedTable(2);
+    table.handle({ type: "set_name", name: "RiverRat" }, ids[1]);
+    table.unseatPlayer(ids[1]);
+    const back = table.seatPlayer("c1-again", playerIds[1]);
+    expect(back.ok).toBe(true);
+    expect(table.viewFor("c1-again", "RE").seats[1].name).toBe("RiverRat");
+  });
+
+  it("sanitizePlayerName strips controls and caps length", () => {
+    expect(sanitizePlayerName("  hi\nthere  ")).toBe("hi there");
+    expect(sanitizePlayerName("")).toBeNull();
+    expect(sanitizePlayerName("a".repeat(200))?.length).toBe(
+      MAX_PLAYER_NAME_LENGTH,
+    );
   });
 });

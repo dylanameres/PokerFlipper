@@ -5,6 +5,8 @@ export type RoomSeat = {
   connectionId: string | null;
   /** Stable browser identity for seat reclaim across reconnects. */
   playerId: string | null;
+  /** Optional display name; null means fall back to P{n}. */
+  name: string | null;
   holes: WireCard[];
   chips: number;
   betStreet: number;
