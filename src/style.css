@@ -1092,6 +1092,11 @@ button.seat__marker--bet {
   border-top-color: #fffdf5;
 }
 
+/* Clear the absolutely positioned WINNER label that sits above winning seats. */
+.seat--winner .seat__emote {
+  bottom: calc(100% + 52px);
+}
+
 .seat__emote--all-in {
   background: #e53935;
   color: #fff;

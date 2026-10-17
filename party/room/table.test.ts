@@ -440,6 +440,20 @@ describe("PokerTable emotes", () => {
     expect(table.viewFor(ids[1], "AI").seats[0].emote).toBeUndefined();
   });
 
+  it("keeps the All in bubble up over a player's own emote", () => {
+    const { table, ids } = seatedTable(3);
+    table.seats[0].chips = 100;
+    table.handle({ type: "deal_hands" }, ids[0]);
+    table.handle({ type: "bet", amount: 100 }, ids[0]);
+    vi.advanceTimersByTime(EMOTE_COOLDOWN_MS);
+    table.handle({ type: "emote", emote: "ship_it" }, ids[0]);
+    expect(table.viewFor(ids[1], "AI").seats[0].emote?.id).toBe("all_in");
+
+    vi.advanceTimersByTime(EMOTE_DURATION_MS);
+    table.handle({ type: "emote", emote: "ship_it" }, ids[0]);
+    expect(table.viewFor(ids[1], "AI").seats[0].emote?.id).toBe("ship_it");
+  });
+
   it("raises an All in bubble when calling for the rest of the stack", () => {
     const { table, ids } = seatedTable(3);
     table.seats[1].chips = 80;

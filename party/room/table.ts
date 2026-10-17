@@ -421,7 +421,12 @@ export class PokerTable {
         if (seat < 0) throw new Error("Not seated");
         if (!isEmoteId(msg.emote)) throw new Error("Invalid emote");
         const s = this.seats[seat];
-        if (s.emote && Date.now() - s.emote.at < EMOTE_COOLDOWN_MS) return;
+        if (s.emote) {
+          const age = Date.now() - s.emote.at;
+          if (age < EMOTE_COOLDOWN_MS) return;
+          // Player emotes never cover a live All in bubble.
+          if (s.emote.id === "all_in" && age < EMOTE_DURATION_MS) return;
+        }
         this.showBubble(s, msg.emote);
         this.notify();
         return;
