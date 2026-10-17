@@ -398,6 +398,8 @@ legend {
   border-radius: 16px;
   padding: 20px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  max-height: 100%;
+  overflow-y: auto;
 }
 
 .settings__head {
@@ -511,6 +513,15 @@ legend {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  /* ~4.5 pills tall so the cut-off pill hints at more below. */
+  max-height: 212px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Room for the selected pill's outline ring. */
+  padding: 2px;
+  margin: -2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
 }
 
 .card-back-option {

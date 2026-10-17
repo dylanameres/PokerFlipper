@@ -787,6 +787,8 @@ function settingsSwitchRow(
   `;
 }
 
+const cardBackPickerScroll: Record<string, number> = {};
+
 function renderCardBackOptions(
   selected: CardBackId,
   dataAttr: "card-back" | "deck-back",
@@ -819,7 +821,7 @@ function renderCardBackPicker(): string {
           ? "Your hole-card backs — everyone at the table sees this"
           : "Face-down hole cards"
       }</p>
-      <div class="card-back-picker">${renderCardBackOptions(state.cardBack, "card-back")}</div>
+      <div class="card-back-picker" data-picker="card-back">${renderCardBackOptions(state.cardBack, "card-back")}</div>
     </div>
   `;
 }
@@ -845,7 +847,7 @@ function renderDeckBackPanel(): string {
           <button type="button" class="outs__close" id="btn-close-deck-back" aria-label="Close">×</button>
         </header>
         <p class="settings__hint">Only you see this — the deck pile on your table.</p>
-        <div class="card-back-picker">${renderCardBackOptions(state.deckCardBack, "deck-back")}</div>
+        <div class="card-back-picker" data-picker="deck-back">${renderCardBackOptions(state.deckCardBack, "deck-back")}</div>
       </div>
     </div>
   `;
@@ -1906,6 +1908,22 @@ function bindSettingsEvents() {
         render();
       });
     });
+
+  // Pickers are rebuilt on every render: restore scroll, then keep the selected back in view.
+  document.querySelectorAll<HTMLElement>(".card-back-picker").forEach((picker) => {
+    const key = picker.dataset.picker ?? "";
+    picker.scrollTop = cardBackPickerScroll[key] ?? 0;
+    picker.addEventListener("scroll", () => {
+      cardBackPickerScroll[key] = picker.scrollTop;
+    });
+    const selected = picker.querySelector<HTMLElement>(".card-back-option--selected");
+    if (!selected) return;
+    const top = selected.offsetTop - picker.offsetTop;
+    const bottom = top + selected.offsetHeight;
+    if (top < picker.scrollTop) picker.scrollTop = top;
+    else if (bottom > picker.scrollTop + picker.clientHeight)
+      picker.scrollTop = bottom - picker.clientHeight;
+  });
 }
 
 function bindEvents() {
