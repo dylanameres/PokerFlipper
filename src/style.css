@@ -1447,65 +1447,97 @@ html.large-cards .picker__card {
 }
 
 .card--back[data-card-back="inferno"] {
-  background: radial-gradient(ellipse at 50% 55%, #5c120c 0%, #3a0907 55%, #1c0403 100%);
+  background:
+    radial-gradient(ellipse 40% 100% at 50% 0, rgba(255, 90, 20, 0.85) 0%, rgba(200, 30, 0, 0.7) 35%, rgba(120, 10, 0, 0.45) 58%, rgba(90, 0, 0, 0) 66%),
+    radial-gradient(ellipse 100% 40% at 100% 50%, rgba(255, 90, 20, 0.85) 0%, rgba(200, 30, 0, 0.7) 35%, rgba(120, 10, 0, 0.45) 58%, rgba(90, 0, 0, 0) 66%),
+    radial-gradient(ellipse 40% 100% at 50% 100%, rgba(255, 90, 20, 0.85) 0%, rgba(200, 30, 0, 0.7) 35%, rgba(120, 10, 0, 0.45) 58%, rgba(90, 0, 0, 0) 66%),
+    radial-gradient(ellipse 100% 40% at 0 50%, rgba(255, 90, 20, 0.85) 0%, rgba(200, 30, 0, 0.7) 35%, rgba(120, 10, 0, 0.45) 58%, rgba(90, 0, 0, 0) 66%),
+    radial-gradient(ellipse at 50% 55%, #5c120c 0%, #3a0907 55%, #1c0403 100%);
+  background-size: 17% 32%, 38% 12%, 17% 32%, 38% 12%, 100% 100%;
+  background-repeat: repeat-x, repeat-y, repeat-x, repeat-y, no-repeat;
   border-color: rgba(255, 140, 60, 0.6);
   box-shadow:
-    inset 0 0 8px 2px rgba(255, 90, 0, 0.55),
-    0 0 8px rgba(255, 90, 20, 0.35),
+    inset 0 0 5px 1px rgba(255, 90, 0, 0.5),
+    0 0 6px rgba(255, 90, 20, 0.3),
     0 2px 6px rgba(0, 0, 0, 0.35);
-  animation: inferno-glow 1.9s ease-in-out infinite;
+  animation:
+    inferno-glow 1.9s ease-in-out infinite,
+    inferno-ring-c 4.3s linear infinite;
 }
 
-/* Flame tongues rooted on every edge, pointing inward. The two rings drift in
-   opposite directions around the border so overlapping tongues flicker. */
+/* Thin flame tongues rooted on every edge, pointing inward: tall dim red (on the
+   card itself), orange, and short yellow cores. Rings drift around the border at
+   different speeds and directions so overlapping tongues flicker. */
 .card--back[data-card-back="inferno"]::before,
 .card--back[data-card-back="inferno"]::after {
   content: "";
   position: absolute;
   inset: 0;
   border-radius: inherit;
+  /* Fade the front rings at the corners, where top and side tongues would cross. */
+  -webkit-mask:
+    radial-gradient(ellipse 34% 24% at 0 0, transparent 35%, #000 100%),
+    radial-gradient(ellipse 34% 24% at 100% 0, transparent 35%, #000 100%),
+    radial-gradient(ellipse 34% 24% at 0 100%, transparent 35%, #000 100%),
+    radial-gradient(ellipse 34% 24% at 100% 100%, transparent 35%, #000 100%);
+  -webkit-mask-composite: source-in;
+  mask:
+    radial-gradient(ellipse 34% 24% at 0 0, transparent 35%, #000 100%),
+    radial-gradient(ellipse 34% 24% at 100% 0, transparent 35%, #000 100%),
+    radial-gradient(ellipse 34% 24% at 0 100%, transparent 35%, #000 100%),
+    radial-gradient(ellipse 34% 24% at 100% 100%, transparent 35%, #000 100%);
+  mask-composite: intersect;
   pointer-events: none;
 }
 
 .card--back[data-card-back="inferno"]::before {
   background:
-    radial-gradient(ellipse 50% 100% at 50% 0, #ffd27a 0%, #ff7a1a 32%, rgba(220, 40, 0, 0.85) 62%, transparent 74%),
-    radial-gradient(ellipse 100% 50% at 100% 50%, #ffd27a 0%, #ff7a1a 32%, rgba(220, 40, 0, 0.85) 62%, transparent 74%),
-    radial-gradient(ellipse 50% 100% at 50% 100%, #ffd27a 0%, #ff7a1a 32%, rgba(220, 40, 0, 0.85) 62%, transparent 74%),
-    radial-gradient(ellipse 100% 50% at 0 50%, #ffd27a 0%, #ff7a1a 32%, rgba(220, 40, 0, 0.85) 62%, transparent 74%);
-  background-size: 25% 22%, 25% 20%, 25% 22%, 25% 20%;
+    radial-gradient(ellipse 34% 100% at 50% 0, #ffc35a 0%, #ff6a10 30%, #c41c00 56%, rgba(140, 10, 0, 0) 63%),
+    radial-gradient(ellipse 100% 34% at 100% 50%, #ffc35a 0%, #ff6a10 30%, #c41c00 56%, rgba(140, 10, 0, 0) 63%),
+    radial-gradient(ellipse 34% 100% at 50% 100%, #ffc35a 0%, #ff6a10 30%, #c41c00 56%, rgba(140, 10, 0, 0) 63%),
+    radial-gradient(ellipse 100% 34% at 0 50%, #ffc35a 0%, #ff6a10 30%, #c41c00 56%, rgba(140, 10, 0, 0) 63%);
+  background-size: 12.5% 22%, 28% 9%, 12.5% 22%, 28% 9%;
   background-repeat: repeat-x, repeat-y, repeat-x, repeat-y;
   animation: inferno-ring-a 3.2s linear infinite;
 }
 
 .card--back[data-card-back="inferno"]::after {
   background:
-    radial-gradient(ellipse 50% 100% at 50% 0, #fff4c8 0%, #ffc04a 30%, rgba(255, 110, 20, 0.7) 60%, transparent 72%),
-    radial-gradient(ellipse 100% 50% at 100% 50%, #fff4c8 0%, #ffc04a 30%, rgba(255, 110, 20, 0.7) 60%, transparent 72%),
-    radial-gradient(ellipse 50% 100% at 50% 100%, #fff4c8 0%, #ffc04a 30%, rgba(255, 110, 20, 0.7) 60%, transparent 72%),
-    radial-gradient(ellipse 100% 50% at 0 50%, #fff4c8 0%, #ffc04a 30%, rgba(255, 110, 20, 0.7) 60%, transparent 72%);
-  background-size: 16.667% 13%, 15% 12.5%, 16.667% 13%, 15% 12.5%;
+    radial-gradient(ellipse 28% 100% at 50% 0, #fff7d6 0%, #ffd36a 26%, #ff8a1a 46%, rgba(255, 120, 20, 0) 53%),
+    radial-gradient(ellipse 100% 28% at 100% 50%, #fff7d6 0%, #ffd36a 26%, #ff8a1a 46%, rgba(255, 120, 20, 0) 53%),
+    radial-gradient(ellipse 28% 100% at 50% 100%, #fff7d6 0%, #ffd36a 26%, #ff8a1a 46%, rgba(255, 120, 20, 0) 53%),
+    radial-gradient(ellipse 100% 28% at 0 50%, #fff7d6 0%, #ffd36a 26%, #ff8a1a 46%, rgba(255, 120, 20, 0) 53%);
+  background-size: 9% 13%, 17% 6.5%, 9% 13%, 17% 6.5%;
   background-repeat: repeat-x, repeat-y, repeat-x, repeat-y;
   mix-blend-mode: screen;
   animation: inferno-ring-b 2.1s linear infinite reverse;
 }
 
-/* Each step moves every edge by exactly one tile, so the loop is seamless. */
+/* Each loop moves every edge by exactly one tile, so it's seamless. */
 @keyframes inferno-ring-a {
   from {
     background-position: 0% 0, 100% 0%, 0% 100%, 0 0%;
   }
   to {
-    background-position: 33.333% 0, 100% 25%, -33.333% 100%, 0 -25%;
+    background-position: 14.286% 0, 100% 9.89%, -14.286% 100%, 0 -9.89%;
   }
 }
 
 @keyframes inferno-ring-b {
   from {
-    background-position: 8% 0, 100% 8%, 8% 100%, 0 8%;
+    background-position: 3% 0, 100% 3%, 3% 100%, 0 3%;
   }
   to {
-    background-position: 28% 0, 100% 22.286%, -12% 100%, 0 -6.286%;
+    background-position: 12.89% 0, 100% 9.952%, -6.89% 100%, 0 -3.952%;
+  }
+}
+
+@keyframes inferno-ring-c {
+  from {
+    background-position: 6% 0, 100% 6%, 6% 100%, 0 6%, 0 0;
+  }
+  to {
+    background-position: 26.482% 0, 100% 19.636%, -14.482% 100%, 0 -7.636%, 0 0;
   }
 }
 
@@ -1513,20 +1545,20 @@ html.large-cards .picker__card {
   0%,
   100% {
     box-shadow:
-      inset 0 0 8px 2px rgba(255, 90, 0, 0.55),
-      0 0 8px rgba(255, 90, 20, 0.35),
+      inset 0 0 5px 1px rgba(255, 90, 0, 0.5),
+      0 0 6px rgba(255, 90, 20, 0.3),
       0 2px 6px rgba(0, 0, 0, 0.35);
   }
   35% {
     box-shadow:
-      inset 0 0 11px 3px rgba(255, 110, 10, 0.7),
-      0 0 11px rgba(255, 110, 30, 0.45),
+      inset 0 0 7px 2px rgba(255, 90, 0, 0.65),
+      0 0 8px rgba(255, 90, 20, 0.4),
       0 2px 6px rgba(0, 0, 0, 0.35);
   }
   60% {
     box-shadow:
-      inset 0 0 6px 1px rgba(255, 80, 0, 0.45),
-      0 0 7px rgba(255, 80, 20, 0.3),
+      inset 0 0 4px 1px rgba(255, 90, 0, 0.4),
+      0 0 5px rgba(255, 90, 20, 0.25),
       0 2px 6px rgba(0, 0, 0, 0.35);
   }
 }
