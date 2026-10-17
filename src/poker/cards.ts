@@ -43,6 +43,11 @@ export function cardToString(card: Card): string {
   return `${RANKS[card >> 2]}${SUITS[card & 3]}`;
 }
 
+/** Face text for a rank; "T" stays the internal code but shows as "10". */
+export function rankLabel(rank: string): string {
+  return rank === "T" ? "10" : rank;
+}
+
 export function parseCard(str: string): Card {
   const rank = str[0].toUpperCase() as Rank;
   const suit = str[1].toLowerCase() as Suit;

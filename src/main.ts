@@ -37,6 +37,7 @@ import {
   makeCard,
   MAX_PLAYERS,
   MIN_PLAYERS,
+  rankLabel,
   RANKS,
   shuffle,
   SUITS,
@@ -1198,11 +1199,12 @@ function renderCard(
     return `<div class="card card--empty${compact ? " card--sm" : ""}${pickClass}"${pickAttrs} aria-label="Empty card slot"></div>`;
   }
   const str = cardToString(card);
-  const rank = str[0];
+  const rank = rankLabel(str[0]);
   const suit = str[1];
+  const label = `${rank}${suit}`;
   const color = suitColorClass(suit);
   return `
-    <div class="card card--face ${color}${compact ? " card--sm" : ""}${pickClass}${pendingClass}" title="${str}"${pickAttrs}${dealAttr}${cardBack ? backAttr : ""} aria-label="${str}">
+    <div class="card card--face ${color}${compact ? " card--sm" : ""}${pickClass}${pendingClass}" title="${label}"${pickAttrs}${dealAttr}${cardBack ? backAttr : ""} aria-label="${label}">
       <span class="card__rank">${rank}</span>
       <span class="card__suit">${SUIT_GLYPH[suit]}</span>
     </div>
@@ -1956,8 +1958,8 @@ function renderCardPicker(): string {
       const color = suitColorClass(suit);
       return `<button type="button" class="picker__card ${color}" data-pick-card="${card}" ${
         taken ? "disabled" : ""
-      } title="${rank}${suit}">
-        <span>${rank}</span><span>${SUIT_GLYPH[suit]}</span>
+      } title="${rankLabel(rank)}${suit}">
+        <span>${rankLabel(rank)}</span><span>${SUIT_GLYPH[suit]}</span>
       </button>`;
     }).join("");
     return `<div class="picker__suit">
