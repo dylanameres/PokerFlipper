@@ -16,8 +16,25 @@ export const MIN_BET = BIG_BLIND;
  * Bump when the room server wire format changes in a breaking/feature way.
  * 6 = side pots + browser playerId seat reclaim.
  * 7 = per-seat display names (set_name).
+ * 8 = per-seat card backs (set_card_back).
  */
-export const ROOM_PROTOCOL = 7;
+export const ROOM_PROTOCOL = 8;
+
+/** Face-down card back designs shared by client + room server. */
+export type CardBackId = "blue" | "red" | "arcane" | "rainbow";
+
+export const CARD_BACK_IDS: readonly CardBackId[] = [
+  "blue",
+  "red",
+  "arcane",
+  "rainbow",
+] as const;
+
+export function isCardBackId(v: unknown): v is CardBackId {
+  return (
+    v === "blue" || v === "red" || v === "arcane" || v === "rainbow"
+  );
+}
 
 /** Max seats in an online room (Hold'em-friendly). */
 export const MAX_ONLINE_PLAYERS = 6;
@@ -52,13 +69,16 @@ export type ClientMessage =
   | { type: "fold" }
   | { type: "call" }
   | { type: "bet"; amount: number }
-  | { type: "set_name"; name: string };
+  | { type: "set_name"; name: string }
+  | { type: "set_card_back"; cardBack: CardBackId };
 
 export interface SeatPublic {
   filled: boolean;
   connected: boolean;
   /** Optional display name (max 120). Absent/empty → clients fall back to P{n}. */
   name?: string;
+  /** Face-down hole-card back for this seat (default blue). */
+  cardBack?: CardBackId;
   chips: number;
   bet: number;
   folded: boolean;
