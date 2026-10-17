@@ -996,6 +996,30 @@ button.seat__marker--bet {
   letter-spacing: 0.14em;
 }
 
+.btn--copy {
+  margin-left: 10px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  vertical-align: 2px;
+  color: #ffe29a;
+  background: rgba(255, 226, 154, 0.08);
+  border-color: rgba(255, 226, 154, 0.35);
+}
+
+.btn--copy:hover {
+  background: rgba(255, 226, 154, 0.16);
+}
+
+.btn--copy.btn--copy-done,
+.btn--copy.btn--copy-done:hover {
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
 .seat--empty {
   opacity: 0.35;
   pointer-events: none;

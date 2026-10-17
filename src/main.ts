@@ -839,6 +839,53 @@ function dealRiver() {
   render();
 }
 
+let roomCodeCopied = false;
+let roomCodeCopiedTimer: ReturnType<typeof setTimeout> | null = null;
+
+function renderCopyRoomCodeButton(): string {
+  const label = roomCodeCopied ? "Copied" : "Copy";
+  return `<button type="button" class="btn btn--copy${roomCodeCopied ? " btn--copy-done" : ""}" id="btn-copy-room-code" title="Copy room code" aria-label="Copy room code">${label}</button>`;
+}
+
+async function writeClipboard(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // Fall through: insecure context or permission denied.
+  }
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.setAttribute("readonly", "");
+  area.style.position = "fixed";
+  area.style.opacity = "0";
+  document.body.appendChild(area);
+  area.select();
+  let ok = false;
+  try {
+    ok = document.execCommand("copy");
+  } catch {
+    ok = false;
+  }
+  area.remove();
+  return ok;
+}
+
+async function copyRoomCode() {
+  const code = state.roomCode || state.online?.roomId || "";
+  if (!code || !(await writeClipboard(code))) return;
+  roomCodeCopied = true;
+  if (roomCodeCopiedTimer) clearTimeout(roomCodeCopiedTimer);
+  roomCodeCopiedTimer = setTimeout(() => {
+    roomCodeCopied = false;
+    roomCodeCopiedTimer = null;
+    render();
+  }, 1500);
+  render();
+}
+
 function backToSetup() {
   disconnectOnline();
   state.emoteMenuOpen = false;
@@ -1772,7 +1819,7 @@ function renderTable(): string {
             <p class="meta">${meta}</p>
             ${
               state.mode === "online" && roomCode
-                ? `<p class="room-code">Room code <strong id="room-code-value">${roomCode}</strong></p>`
+                ? `<p class="room-code">Room code <strong id="room-code-value">${roomCode}</strong>${renderCopyRoomCodeButton()}</p>`
                 : ""
             }
             ${
@@ -2120,6 +2167,9 @@ function bindEvents() {
   }
 
   document.getElementById("btn-setup")?.addEventListener("click", backToSetup);
+  document
+    .getElementById("btn-copy-room-code")
+    ?.addEventListener("click", () => void copyRoomCode());
   document.getElementById("table-deck")?.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
