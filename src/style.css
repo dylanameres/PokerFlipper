@@ -418,6 +418,47 @@ legend {
   gap: 10px;
 }
 
+.rename-form {
+  display: grid;
+  gap: 10px;
+}
+
+.rename-form__label {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.rename-form__input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #0e1411;
+  color: var(--ink);
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 1rem;
+}
+
+.rename-form__input:focus {
+  outline: 2px solid rgba(126, 217, 87, 0.55);
+  outline-offset: 1px;
+  border-color: rgba(126, 217, 87, 0.65);
+}
+
+.rename-form__hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.rename-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
 .settings__row {
   display: flex;
   align-items: center;
