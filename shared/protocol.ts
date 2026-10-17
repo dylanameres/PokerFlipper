@@ -17,23 +17,26 @@ export const MIN_BET = BIG_BLIND;
  * 6 = side pots + browser playerId seat reclaim.
  * 7 = per-seat display names (set_name).
  * 8 = per-seat card backs (set_card_back).
+ * 9 = more card backs (felt, noir, midnight, sunset).
  */
-export const ROOM_PROTOCOL = 8;
+export const ROOM_PROTOCOL = 9;
 
 /** Face-down card back designs shared by client + room server. */
-export type CardBackId = "blue" | "red" | "arcane" | "rainbow";
-
-export const CARD_BACK_IDS: readonly CardBackId[] = [
+export const CARD_BACK_IDS = [
   "blue",
   "red",
   "arcane",
   "rainbow",
+  "felt",
+  "noir",
+  "midnight",
+  "sunset",
 ] as const;
 
+export type CardBackId = (typeof CARD_BACK_IDS)[number];
+
 export function isCardBackId(v: unknown): v is CardBackId {
-  return (
-    v === "blue" || v === "red" || v === "arcane" || v === "rainbow"
-  );
+  return (CARD_BACK_IDS as readonly unknown[]).includes(v);
 }
 
 /** Max seats in an online room (Hold'em-friendly). */
