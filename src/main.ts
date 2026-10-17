@@ -1,5 +1,6 @@
-import type { RoomView, SeatPublic } from "../shared/protocol";
+import type { CardBackId, RoomView, SeatPublic } from "../shared/protocol";
 import {
+  isCardBackId,
   MAX_ONLINE_PLAYERS,
   MAX_PLAYER_NAME_LENGTH,
   MIN_ONLINE_PLAYERS,
@@ -85,12 +86,12 @@ interface AppState {
   renameDraft: string;
   /** Online: already pushed localStorage preferred name this session. */
   preferredNameSynced: boolean;
+  /** Online: already pushed local card-back preference this session. */
+  preferredCardBackSynced: boolean;
 }
 
 const SETTINGS_KEY = "pokerflipper-settings";
 const PLAYER_NAME_KEY = "pokerflipper-display-name";
-
-type CardBackId = "blue" | "red" | "arcane" | "rainbow";
 
 const CARD_BACKS: { id: CardBackId; label: string; detail: string }[] = [
   { id: "blue", label: "Ocean", detail: "Classic blue" },
@@ -98,12 +99,6 @@ const CARD_BACKS: { id: CardBackId; label: string; detail: string }[] = [
   { id: "arcane", label: "Arcane", detail: "Purple magic" },
   { id: "rainbow", label: "Prism", detail: "Rainbow shine" },
 ];
-
-function isCardBackId(v: unknown): v is CardBackId {
-  return (
-    v === "blue" || v === "red" || v === "arcane" || v === "rainbow"
-  );
-}
 
 interface SavedSettings {
   fourColorDeck: boolean;
@@ -184,6 +179,7 @@ const state: AppState = {
   renameOpen: false,
   renameDraft: "",
   preferredNameSynced: false,
+  preferredCardBackSynced: false,
 };
 
 function escapeHtml(text: string): string {
@@ -307,10 +303,12 @@ function normalizeOnlineView(view: RoomView): RoomView {
   // Older Workers deploys omit chip/betting fields — fill defaults so render never throws.
   const seats: SeatPublic[] = (view.seats ?? []).map((s) => {
     const name = sanitizePlayerName(s.name ?? "");
+    const cardBack = isCardBackId(s.cardBack) ? s.cardBack : undefined;
     return {
       filled: Boolean(s.filled),
       connected: Boolean(s.connected),
       ...(name ? { name } : {}),
+      ...(cardBack ? { cardBack } : {}),
       chips: typeof s.chips === "number" ? s.chips : 0,
       bet: typeof s.bet === "number" ? s.bet : 0,
       folded: Boolean(s.folded),
@@ -493,6 +491,22 @@ function applyOnlineView(view: RoomView) {
     }
   }
 
+  // Push local card-back choice so everyone sees your hole backs.
+  if (
+    !state.preferredCardBackSynced &&
+    normalized.yourSeat !== null &&
+    state.onlineSupportsBetting
+  ) {
+    const current =
+      normalized.seats[normalized.yourSeat]?.cardBack ?? "blue";
+    if (state.cardBack !== current) {
+      state.preferredCardBackSynced = true;
+      sendOnline({ type: "set_card_back", cardBack: state.cardBack });
+    } else {
+      state.preferredCardBackSynced = true;
+    }
+  }
+
   render();
 
   // Host fallback: if the room is stuck with bettingComplete (older server, or
@@ -534,6 +548,7 @@ function startOnline(roomCode: string) {
   state.renameOpen = false;
   state.renameDraft = loadPreferredName() ?? "";
   state.preferredNameSynced = false;
+  state.preferredCardBackSynced = false;
   render();
 
   connectOnline(state.roomCode, state.gameType, {
@@ -698,6 +713,7 @@ function backToSetup() {
   state.handsDealtCount = 0;
   state.renameOpen = false;
   state.preferredNameSynced = false;
+  state.preferredCardBackSynced = false;
   resetDealAnimationState();
   render();
 }
@@ -776,6 +792,11 @@ function renderCardBackPicker(): string {
   return `
     <div class="settings__section">
       <div class="settings__section-label">Card back</div>
+      <p class="settings__hint">${
+        state.mode === "online"
+          ? "Your hole-card backs — everyone at the table sees this"
+          : "Face-down card design"
+      }</p>
       <div class="card-back-picker">${options}</div>
     </div>
   `;
@@ -913,6 +934,7 @@ function renderCard(
     faceDown?: boolean;
     dealKey?: string;
     pendingDeal?: boolean;
+    cardBack?: CardBackId;
   } = {},
 ): string {
   const {
@@ -923,6 +945,7 @@ function renderCard(
     faceDown = false,
     dealKey,
     pendingDeal = false,
+    cardBack,
   } = opts;
   let pickAttrs = "";
   if (!faceDown && pickBoard !== undefined) {
@@ -937,9 +960,11 @@ function renderCard(
   const pickClass = pickAttrs ? " card--pickable" : "";
   const dealAttr = dealKey ? ` data-deal-key="${dealKey}"` : "";
   const pendingClass = pendingDeal ? " card--pending-deal" : "";
+  const back = cardBack && isCardBackId(cardBack) ? cardBack : "blue";
+  const backAttr = ` data-card-back="${back}"`;
 
   if (faceDown) {
-    return `<div class="card card--back${compact ? " card--sm" : ""}${pendingClass}"${dealAttr} aria-label="Face-down card"></div>`;
+    return `<div class="card card--back${compact ? " card--sm" : ""}${pendingClass}"${dealAttr}${backAttr} aria-label="Face-down card"></div>`;
   }
   if (card === null) {
     return `<div class="card card--empty${compact ? " card--sm" : ""}${pickClass}"${pickAttrs} aria-label="Empty card slot"></div>`;
@@ -1446,12 +1471,18 @@ function renderTable(): string {
                       const dealKey = `h-${i}-${slot}`;
                       const faceDown = Boolean(showBacks && hidden?.[slot]);
                       const filled = c !== null || faceDown;
+                      const seatBack =
+                        state.mode === "online"
+                          ? (online?.seats[i]?.cardBack ??
+                            (isYou ? state.cardBack : "blue"))
+                          : state.cardBack;
                       return renderCard(c, {
                         pickPlayer: state.mode === "solo" ? i : undefined,
                         pickSlot: state.mode === "solo" ? slot : undefined,
                         faceDown,
                         dealKey: filled ? dealKey : undefined,
                         pendingDeal: filled && freshDealKeys.has(dealKey),
+                        cardBack: seatBack,
                       });
                     })
                     .join("")
@@ -1716,7 +1747,7 @@ function hintForStreet(street: Street): string {
 
 function render() {
   document.documentElement.classList.toggle("large-cards", state.largeCards);
-  document.documentElement.dataset.cardBack = state.cardBack;
+  delete document.documentElement.dataset.cardBack;
   const dealKeys =
     state.screen === "table" ? currentDealKeys() : ([] as string[]);
   const incoming = state.screen === "table" ? newDealKeys(dealKeys) : [];
@@ -1785,7 +1816,7 @@ function bindSettingsEvents() {
       toggleSetting(key);
     });
   });
-  // Only the picker buttons — not <html data-card-back>, which would steal every click.
+  // Only the picker buttons — not document-level data-card-back.
   document
     .querySelectorAll<HTMLButtonElement>("button.card-back-option[data-card-back]")
     .forEach((btn) => {
@@ -1796,6 +1827,10 @@ function bindSettingsEvents() {
         if (!isCardBackId(id) || id === state.cardBack) return;
         state.cardBack = id;
         saveSettings();
+        if (state.mode === "online" && state.online?.yourSeat !== null) {
+          state.preferredCardBackSynced = true;
+          sendOnline({ type: "set_card_back", cardBack: id });
+        }
         render();
       });
     });

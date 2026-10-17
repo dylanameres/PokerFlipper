@@ -344,4 +344,24 @@ describe("PokerTable multiplayer framework", () => {
       MAX_PLAYER_NAME_LENGTH,
     );
   });
+
+  it("lets each seat set a card back visible to others", () => {
+    const { table, ids } = seatedTable(2);
+    expect(ROOM_PROTOCOL).toBeGreaterThanOrEqual(8);
+    expect(table.viewFor(ids[0], "CB").seats[0].cardBack).toBe("blue");
+    table.handle({ type: "set_card_back", cardBack: "rainbow" }, ids[0]);
+    table.handle({ type: "set_card_back", cardBack: "arcane" }, ids[1]);
+    const v = table.viewFor(ids[1], "CB");
+    expect(v.seats[0].cardBack).toBe("rainbow");
+    expect(v.seats[1].cardBack).toBe("arcane");
+    expect(() =>
+      table.handle(
+        { type: "set_card_back", cardBack: "nope" } as {
+          type: "set_card_back";
+          cardBack: "blue";
+        },
+        ids[0],
+      ),
+    ).toThrow(/invalid card back/i);
+  });
 });

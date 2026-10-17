@@ -500,6 +500,13 @@ legend {
   margin: 4px 2px 10px;
 }
 
+.settings__hint {
+  margin: -4px 2px 10px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
 .card-back-picker {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1396,7 +1403,8 @@ html.large-cards .picker__card {
   overflow: visible;
 }
 
-html[data-card-back="red"] .card--back:not(.card-back-option__preview) {
+/* Per-card backs (online: each seat; solo: local preference). */
+.card--back[data-card-back="red"]:not(.card-back-option__preview) {
   background:
     repeating-linear-gradient(
       45deg,
@@ -1408,7 +1416,7 @@ html[data-card-back="red"] .card--back:not(.card-back-option__preview) {
   border-color: rgba(255, 200, 200, 0.22);
 }
 
-html[data-card-back="arcane"] .card--back:not(.card-back-option__preview) {
+.card--back[data-card-back="arcane"]:not(.card-back-option__preview) {
   background:
     radial-gradient(circle at 30% 25%, rgba(220, 180, 255, 0.55) 0%, transparent 42%),
     radial-gradient(circle at 70% 75%, rgba(120, 80, 255, 0.5) 0%, transparent 40%),
@@ -1425,7 +1433,7 @@ html[data-card-back="arcane"] .card--back:not(.card-back-option__preview) {
     0 2px 6px rgba(0, 0, 0, 0.35);
 }
 
-html[data-card-back="arcane"] .card--back:not(.card-back-option__preview)::before {
+.card--back[data-card-back="arcane"]:not(.card-back-option__preview)::before {
   content: "";
   position: absolute;
   inset: 18%;
@@ -1435,7 +1443,7 @@ html[data-card-back="arcane"] .card--back:not(.card-back-option__preview)::befor
   pointer-events: none;
 }
 
-html[data-card-back="rainbow"] .card--back:not(.card-back-option__preview) {
+.card--back[data-card-back="rainbow"]:not(.card-back-option__preview) {
   background:
     linear-gradient(
       135deg,
@@ -1452,7 +1460,7 @@ html[data-card-back="rainbow"] .card--back:not(.card-back-option__preview) {
     0 2px 6px rgba(0, 0, 0, 0.35);
 }
 
-html[data-card-back="rainbow"] .card--back:not(.card-back-option__preview)::after {
+.card--back[data-card-back="rainbow"]:not(.card-back-option__preview)::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -1479,7 +1487,7 @@ html[data-card-back="rainbow"] .card--back:not(.card-back-option__preview)::afte
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html[data-card-back="rainbow"] .card--back:not(.card-back-option__preview)::after {
+  .card--back[data-card-back="rainbow"]:not(.card-back-option__preview)::after {
     animation: none;
     background-position: 40% 0;
   }

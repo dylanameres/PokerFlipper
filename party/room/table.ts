@@ -7,6 +7,7 @@ import {
   ROOM_PROTOCOL,
   SMALL_BLIND,
   STARTING_CHIPS,
+  isCardBackId,
   sanitizePlayerName,
   type ClientMessage,
   type GameType,
@@ -83,6 +84,7 @@ export class PokerTable {
       connectionId: null,
       playerId: null,
       name: null,
+      cardBack: null,
       holes: emptyHoles(this.holes()),
       chips: STARTING_CHIPS,
       betStreet: 0,
@@ -186,6 +188,7 @@ export class PokerTable {
     seat.playerId = pid;
     seat.connectionId = connectionId;
     seat.name = null;
+    seat.cardBack = null;
     seat.holes = emptyHoles(this.holes());
     seat.chips = STARTING_CHIPS;
     seat.betStreet = 0;
@@ -398,6 +401,14 @@ export class PokerTable {
         this.notify();
         return;
       }
+      case "set_card_back": {
+        const seat = this.seatIndexOf(connectionId);
+        if (seat < 0) throw new Error("Not seated");
+        if (!isCardBackId(msg.cardBack)) throw new Error("Invalid card back");
+        this.seats[seat].cardBack = msg.cardBack;
+        this.notify();
+        return;
+      }
       default:
         throw new Error("Unknown message");
     }
@@ -539,6 +550,7 @@ export class PokerTable {
         isBigBlind: tableLive && occupiedSeat && i === bb,
       };
       if (occupiedSeat && s.name) pub.name = s.name;
+      if (occupiedSeat) pub.cardBack = s.cardBack ?? "blue";
       if (!occupiedSeat || !s.inHand) return pub;
 
       // Own holes live in `yourHoles` only — avoid duplicating on the wire.

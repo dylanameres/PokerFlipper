@@ -1,4 +1,4 @@
-import type { WireCard } from "../../shared/protocol";
+import type { CardBackId, WireCard } from "../../shared/protocol";
 
 /** Internal seat state for the room engine (not sent on the wire as-is). */
 export type RoomSeat = {
@@ -7,6 +7,8 @@ export type RoomSeat = {
   playerId: string | null;
   /** Optional display name; null means fall back to P{n}. */
   name: string | null;
+  /** Hole-card back design; null means default blue. */
+  cardBack: CardBackId | null;
   holes: WireCard[];
   chips: number;
   betStreet: number;
