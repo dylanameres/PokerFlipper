@@ -421,9 +421,54 @@ describe("PokerTable emotes", () => {
     const { table, ids, getViews } = seatedTable(2);
     table.handle({ type: "emote", emote: "gg" }, ids[0]);
     const views = getViews();
-    table.handle({ type: "emote", emote: "all_in" }, ids[0]);
+    table.handle({ type: "emote", emote: "nice_hand" }, ids[0]);
     expect(getViews()).toBe(views);
     expect(table.viewFor(ids[0], "EM").seats[0].emote?.id).toBe("gg");
+  });
+
+  it("raises an All in bubble when a bet uses a player's last chip", () => {
+    const { table, ids } = seatedTable(3);
+    table.seats[0].chips = 100;
+    table.handle({ type: "deal_hands" }, ids[0]);
+    expect(table.viewFor(ids[1], "AI").seats[0].emote).toBeUndefined();
+    table.handle({ type: "bet", amount: 100 }, ids[0]);
+    const v = table.viewFor(ids[1], "AI");
+    expect(v.seats[0].emote?.id).toBe("all_in");
+    expect(v.seats[1].emote).toBeUndefined();
+
+    vi.advanceTimersByTime(EMOTE_DURATION_MS);
+    expect(table.viewFor(ids[1], "AI").seats[0].emote).toBeUndefined();
+  });
+
+  it("raises an All in bubble when calling for the rest of the stack", () => {
+    const { table, ids } = seatedTable(3);
+    table.seats[1].chips = 80;
+    table.handle({ type: "deal_hands" }, ids[0]);
+    table.handle({ type: "bet", amount: 300 }, ids[0]);
+    expect(table.viewFor(ids[0], "AI").seats[1].emote).toBeUndefined();
+    table.handle({ type: "call" }, ids[1]);
+    expect(table.viewFor(ids[0], "AI").seats[1].emote?.id).toBe("all_in");
+  });
+
+  it("raises an All in bubble when a blind takes the whole stack", () => {
+    const { table, ids } = seatedTable(3);
+    // Seat 2 posts the BB on the first hand.
+    table.seats[2].chips = 30;
+    table.handle({ type: "deal_hands" }, ids[0]);
+    expect(table.viewFor(ids[0], "AI").seats[2].emote?.id).toBe("all_in");
+  });
+
+  it("does not let players send the All in bubble themselves", () => {
+    const { table, ids } = seatedTable(2);
+    expect(() =>
+      table.handle(
+        { type: "emote", emote: "all_in" } as unknown as {
+          type: "emote";
+          emote: "gg";
+        },
+        ids[0],
+      ),
+    ).toThrow(/invalid emote/i);
   });
 
   it("rejects unknown emotes and unseated senders", () => {
@@ -437,6 +482,6 @@ describe("PokerTable emotes", () => {
     expect(() =>
       table.handle({ type: "emote", emote: "gg" }, "stranger"),
     ).toThrow(/not seated/i);
-    expect(EMOTE_IDS).toEqual(["gg", "haha", "ship_it", "all_in"]);
+    expect(EMOTE_IDS).toEqual(["gg", "haha", "ship_it", "nice_hand"]);
   });
 });

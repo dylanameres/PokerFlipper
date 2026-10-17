@@ -16,6 +16,7 @@ import {
   type GameType,
   type PotPublic,
   type RoomView,
+  type SeatBubbleId,
   type SeatPublic,
   type Street,
   type WireCard,
@@ -420,16 +421,9 @@ export class PokerTable {
         if (seat < 0) throw new Error("Not seated");
         if (!isEmoteId(msg.emote)) throw new Error("Invalid emote");
         const s = this.seats[seat];
-        const now = Date.now();
-        if (s.emote && now - s.emote.at < EMOTE_COOLDOWN_MS) return;
-        const seq = ++this.emoteSeq;
-        s.emote = { id: msg.emote, seq, at: now };
+        if (s.emote && Date.now() - s.emote.at < EMOTE_COOLDOWN_MS) return;
+        this.showBubble(s, msg.emote);
         this.notify();
-        setTimeout(() => {
-          if (s.emote?.seq !== seq) return;
-          s.emote = null;
-          this.notify();
-        }, EMOTE_DURATION_MS);
         return;
       }
       default:
@@ -783,7 +777,22 @@ export class PokerTable {
     seat.betStreet += n;
     seat.contributed += n;
     this.pot += n;
+    if (n > 0 && seat.chips === 0) this.showBubble(seat, "all_in");
     return n;
+  }
+
+  /**
+   * Put a bubble over a seat and clear it after EMOTE_DURATION_MS.
+   * Caller broadcasts the new bubble; the clear broadcasts itself.
+   */
+  private showBubble(seat: RoomSeat, id: SeatBubbleId) {
+    const seq = ++this.emoteSeq;
+    seat.emote = { id, seq, at: Date.now() };
+    setTimeout(() => {
+      if (seat.emote?.seq !== seq) return;
+      seat.emote = null;
+      this.notify();
+    }, EMOTE_DURATION_MS);
   }
 
   private seatsThatCanBet(): number[] {
