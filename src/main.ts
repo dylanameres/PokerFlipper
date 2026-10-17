@@ -102,7 +102,7 @@ const CARD_BACKS: { id: CardBackId; label: string; detail: string }[] = [
   { id: "red", label: "Crimson", detail: "Deep red" },
   { id: "arcane", label: "Arcane", detail: "Purple magic" },
   { id: "rainbow", label: "Prism", detail: "Rainbow shine" },
-  { id: "inferno", label: "Inferno", detail: "Flame border" },
+  { id: "treasure", label: "Treasure", detail: "Pirate's hoard" },
   { id: "noir", label: "Noir", detail: "Black & gold" },
   { id: "midnight", label: "Midnight", detail: "Starry night" },
   { id: "sunset", label: "Sunset", detail: "Warm horizon" },
