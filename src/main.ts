@@ -305,21 +305,27 @@ function startSoloTable() {
 
 function normalizeOnlineView(view: RoomView): RoomView {
   // Older Workers deploys omit chip/betting fields — fill defaults so render never throws.
-  const seats: SeatPublic[] = (view.seats ?? []).map((s) => ({
-    filled: Boolean(s.filled),
-    connected: Boolean(s.connected),
-    chips: typeof s.chips === "number" ? s.chips : 0,
-    bet: typeof s.bet === "number" ? s.bet : 0,
-    folded: Boolean(s.folded),
-    inHand: s.inHand !== undefined ? Boolean(s.inHand) : Boolean(s.filled),
-    isButton: Boolean(s.isButton),
-    isSmallBlind: Boolean(s.isSmallBlind),
-    isBigBlind: Boolean(s.isBigBlind),
-    holeHidden: Array.isArray(s.holeHidden)
-      ? s.holeHidden.map(Boolean)
-      : undefined,
-    holes: Array.isArray(s.holes) ? s.holes.map((c) => c) : s.holes ?? undefined,
-  }));
+  const seats: SeatPublic[] = (view.seats ?? []).map((s) => {
+    const name = sanitizePlayerName(s.name ?? "");
+    return {
+      filled: Boolean(s.filled),
+      connected: Boolean(s.connected),
+      ...(name ? { name } : {}),
+      chips: typeof s.chips === "number" ? s.chips : 0,
+      bet: typeof s.bet === "number" ? s.bet : 0,
+      folded: Boolean(s.folded),
+      inHand: s.inHand !== undefined ? Boolean(s.inHand) : Boolean(s.filled),
+      isButton: Boolean(s.isButton),
+      isSmallBlind: Boolean(s.isSmallBlind),
+      isBigBlind: Boolean(s.isBigBlind),
+      holeHidden: Array.isArray(s.holeHidden)
+        ? s.holeHidden.map(Boolean)
+        : undefined,
+      holes: Array.isArray(s.holes)
+        ? s.holes.map((c) => c)
+        : s.holes ?? undefined,
+    };
+  });
   // Pad to table capacity so layout stays stable as players join.
   const capacity = view.maxSeats ?? Math.max(seats.length, MAX_ONLINE_PLAYERS);
   while (seats.length < capacity) {
@@ -840,17 +846,25 @@ function closeRenameDialog() {
 }
 
 function submitRename() {
-  const name = sanitizePlayerName(state.renameDraft);
+  const input = document.getElementById(
+    "rename-input",
+  ) as HTMLInputElement | null;
+  const raw = input?.value ?? state.renameDraft;
+  const name = sanitizePlayerName(raw);
   if (!name) {
     state.onlineError = "Name must be 1–120 characters";
     render();
     return;
   }
+  state.renameDraft = name;
   savePreferredName(name);
   state.preferredNameSynced = true;
   state.renameOpen = false;
   state.onlineError = null;
-  sendOnline({ type: "set_name", name });
+  if (!sendOnline({ type: "set_name", name })) {
+    state.onlineError = "Not connected — try renaming again in a moment";
+    state.renameOpen = true;
+  }
   render();
 }
 
@@ -1561,7 +1575,7 @@ function renderTable(): string {
           </div>
           <div class="table-bar__actions">
             ${
-              state.mode === "online" && online?.yourSeat !== null
+              online && online.yourSeat !== null
                 ? `<button type="button" class="btn btn--ghost" id="btn-rename">Rename</button>`
                 : ""
             }

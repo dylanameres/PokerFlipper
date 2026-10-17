@@ -126,9 +126,10 @@ export function connectOnline(
   });
 }
 
-export function sendOnline(msg: ClientMessage): void {
-  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+export function sendOnline(msg: ClientMessage): boolean {
+  if (!socket || socket.readyState !== 1 /* OPEN */) return false;
   socket.send(JSON.stringify(msg));
+  return true;
 }
 
 export function disconnectOnline(): void {
