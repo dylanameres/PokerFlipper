@@ -1092,14 +1092,16 @@ button.seat__marker--bet {
 
 .emote-bar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
   justify-content: center;
   margin-top: 12px;
 }
 
+.emote-bar__anchor {
+  position: relative;
+}
+
 .btn--emote {
-  padding: 6px 14px;
+  padding: 6px 16px;
   border-radius: 999px;
   font-size: 0.78rem;
   font-weight: 700;
@@ -1108,9 +1110,90 @@ button.seat__marker--bet {
   color: #f3ecd6;
 }
 
-.btn--emote:hover {
+.btn--emote:hover,
+.btn--emote-open {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+/* Opens sideways so it never covers the betting bar above or deal buttons below. */
+.emote-menu {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 10px);
+  z-index: 70;
+  display: flex;
+  gap: 10px;
+  padding: 8px 12px 12px;
+  border-radius: 14px;
+  background: rgba(10, 16, 13, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  transform: translateY(-50%);
+  --emote-menu-from: translate(-6px, -50%);
+  --emote-menu-to: translate(0, -50%);
+}
+
+.emote-menu--enter {
+  animation: emote-menu-in 120ms ease-out;
+}
+
+@media (max-width: 700px) {
+  .emote-menu {
+    top: auto;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    --emote-menu-from: translate(-50%, 6px);
+    --emote-menu-to: translate(-50%, 0);
+  }
+}
+
+/* Options mirror the seat bubble so it's clear they send a message. */
+.emote-option {
+  position: relative;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 14px;
+  background: #fffdf5;
+  color: #1a1208;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+  transition: transform 80ms ease-out;
+}
+
+.emote-option::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  margin-left: -5px;
+  border: 5px solid transparent;
+  border-top-color: #fffdf5;
+}
+
+.emote-option:hover,
+.emote-option:focus-visible {
+  transform: translateY(-2px) scale(1.05);
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 4px 10px rgba(0, 0, 0, 0.4);
+}
+
+@keyframes emote-menu-in {
+  from {
+    opacity: 0;
+    transform: var(--emote-menu-from);
+  }
+  to {
+    opacity: 1;
+    transform: var(--emote-menu-to);
+  }
 }
 
 .bet-bar {

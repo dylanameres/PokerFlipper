@@ -98,6 +98,8 @@ interface AppState {
   preferredCardBackSynced: boolean;
   /** Solo flip-mode finished-hand lines (newest last). */
   soloHistory: string[];
+  /** Online: emote picker popover open. */
+  emoteMenuOpen: boolean;
 }
 
 const SETTINGS_KEY = "pokerflipper-settings";
@@ -204,6 +206,7 @@ const state: AppState = {
   preferredNameSynced: false,
   preferredCardBackSynced: false,
   soloHistory: [],
+  emoteMenuOpen: false,
 };
 
 function escapeHtml(text: string): string {
@@ -510,11 +513,33 @@ function renderEmoteBubble(seat: SeatPublic | undefined): string {
 
 function renderEmoteBar(online: RoomView): string {
   if (online.yourSeat === null) return "";
-  const buttons = EMOTE_IDS.map(
-    (id) =>
-      `<button type="button" class="btn btn--emote" data-emote="${id}">${escapeHtml(EMOTE_LABELS[id])}</button>`,
-  ).join("");
-  return `<div class="emote-bar" role="group" aria-label="Emotes">${buttons}</div>`;
+  const open = state.emoteMenuOpen;
+  const enter = emoteMenuJustOpened;
+  emoteMenuJustOpened = false;
+  const menu = open
+    ? `<div class="emote-menu${enter ? " emote-menu--enter" : ""}" id="emote-menu" role="menu" aria-label="Emotes">${EMOTE_IDS.map(
+        (id) =>
+          `<button type="button" class="emote-option" role="menuitem" data-emote="${id}">${escapeHtml(EMOTE_LABELS[id])}</button>`,
+      ).join("")}</div>`
+    : "";
+  return `
+    <div class="emote-bar">
+      <div class="emote-bar__anchor">
+        <button type="button" class="btn btn--emote${open ? " btn--emote-open" : ""}" id="btn-emote" aria-haspopup="menu" aria-expanded="${open}" aria-controls="emote-menu">Emote</button>
+        ${menu}
+      </div>
+    </div>
+  `;
+}
+
+/** Animate the menu only on the render that opens it, not on room updates. */
+let emoteMenuJustOpened = false;
+
+function setEmoteMenuOpen(open: boolean) {
+  if (state.emoteMenuOpen === open) return;
+  state.emoteMenuOpen = open;
+  emoteMenuJustOpened = open;
+  render();
 }
 
 function applyOnlineView(view: RoomView) {
@@ -816,6 +841,7 @@ function dealRiver() {
 
 function backToSetup() {
   disconnectOnline();
+  state.emoteMenuOpen = false;
   state.screen = "setup";
   state.mode = "solo";
   state.online = null;
@@ -2157,12 +2183,16 @@ function bindEvents() {
     sendOnline({ type: "bet", amount });
   });
 
+  document.getElementById("btn-emote")?.addEventListener("click", () => {
+    setEmoteMenuOpen(!state.emoteMenuOpen);
+  });
   document.querySelectorAll<HTMLButtonElement>("[data-emote]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const emote = btn.dataset.emote;
       if (!isEmoteId(emote)) return;
       unlockAudio();
       sendOnline({ type: "emote", emote });
+      setEmoteMenuOpen(false);
     });
   });
 
@@ -2219,5 +2249,16 @@ function bindEvents() {
     e.stopPropagation();
   });
 }
+
+// Registered once: bindEvents() runs on every render and would stack these.
+document.addEventListener("click", (e) => {
+  if (!state.emoteMenuOpen) return;
+  const target = e.target as Element | null;
+  if (target?.closest(".emote-bar")) return;
+  setEmoteMenuOpen(false);
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") setEmoteMenuOpen(false);
+});
 
 render();
