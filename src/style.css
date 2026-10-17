@@ -1039,6 +1039,80 @@ button.seat__marker--bet {
     0 0 42px rgba(201, 162, 39, 0.35);
 }
 
+.seat__emote {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  z-index: 60;
+  padding: 6px 12px;
+  border-radius: 14px;
+  background: #fffdf5;
+  color: #1a1208;
+  font-size: 0.85rem;
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  transform-origin: 50% 100%;
+  opacity: 0;
+  animation: emote-bubble var(--emote-ms, 3500ms) ease-out forwards;
+}
+
+.seat__emote::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  margin-left: -6px;
+  border: 6px solid transparent;
+  border-top-color: #fffdf5;
+}
+
+@keyframes emote-bubble {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(6px) scale(0.6);
+  }
+  6% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1.08);
+  }
+  10% {
+    transform: translateX(-50%) scale(1);
+  }
+  88% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-6px) scale(0.95);
+  }
+}
+
+.emote-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+.btn--emote {
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: rgba(255, 253, 245, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #f3ecd6;
+}
+
+.btn--emote:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .bet-bar {
   display: flex;
   flex-wrap: wrap;

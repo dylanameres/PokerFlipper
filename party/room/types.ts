@@ -1,4 +1,4 @@
-import type { CardBackId, WireCard } from "../../shared/protocol";
+import type { CardBackId, EmoteId, WireCard } from "../../shared/protocol";
 
 /** Internal seat state for the room engine (not sent on the wire as-is). */
 export type RoomSeat = {
@@ -9,6 +9,8 @@ export type RoomSeat = {
   name: string | null;
   /** Hole-card back design; null means default blue. */
   cardBack: CardBackId | null;
+  /** Current emote bubble; `at` is the server time it was sent. */
+  emote: { id: EmoteId; seq: number; at: number } | null;
   holes: WireCard[];
   chips: number;
   betStreet: number;

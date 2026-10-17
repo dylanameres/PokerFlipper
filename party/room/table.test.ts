@@ -1,7 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   BIG_BLIND,
   CARD_BACK_IDS,
+  EMOTE_COOLDOWN_MS,
+  EMOTE_DURATION_MS,
+  EMOTE_IDS,
   MAX_ONLINE_PLAYERS,
   MAX_PLAYER_NAME_LENGTH,
   MIN_ONLINE_PLAYERS,
@@ -372,5 +375,68 @@ describe("PokerTable multiplayer framework", () => {
       table.handle({ type: "set_card_back", cardBack: id }, ids[0]);
       expect(table.viewFor(ids[1], "CB").seats[0].cardBack).toBe(id);
     }
+  });
+});
+
+describe("PokerTable emotes", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("shows an emote to everyone, then clears it after the duration", () => {
+    const { table, ids, getViews } = seatedTable(2);
+    const before = getViews();
+    table.handle({ type: "emote", emote: "ship_it" }, ids[0]);
+    expect(getViews()).toBe(before + 1);
+    const emote = table.viewFor(ids[1], "EM").seats[0].emote;
+    expect(emote?.id).toBe("ship_it");
+    expect(table.viewFor(ids[1], "EM").seats[1].emote).toBeUndefined();
+
+    vi.advanceTimersByTime(EMOTE_DURATION_MS);
+    expect(getViews()).toBe(before + 2);
+    expect(table.viewFor(ids[1], "EM").seats[0].emote).toBeUndefined();
+  });
+
+  it("replaces an emote with a new seq and keeps the newer one up", () => {
+    const { table, ids } = seatedTable(2);
+    table.handle({ type: "emote", emote: "gg" }, ids[0]);
+    const first = table.viewFor(ids[0], "EM").seats[0].emote!;
+    vi.advanceTimersByTime(EMOTE_COOLDOWN_MS);
+    table.handle({ type: "emote", emote: "haha" }, ids[0]);
+    const second = table.viewFor(ids[0], "EM").seats[0].emote!;
+    expect(second.id).toBe("haha");
+    expect(second.seq).not.toBe(first.seq);
+
+    // First emote's timer must not clear the replacement.
+    vi.advanceTimersByTime(EMOTE_DURATION_MS - EMOTE_COOLDOWN_MS);
+    expect(table.viewFor(ids[0], "EM").seats[0].emote?.id).toBe("haha");
+    vi.advanceTimersByTime(EMOTE_COOLDOWN_MS);
+    expect(table.viewFor(ids[0], "EM").seats[0].emote).toBeUndefined();
+  });
+
+  it("ignores emotes sent during the cooldown", () => {
+    const { table, ids, getViews } = seatedTable(2);
+    table.handle({ type: "emote", emote: "gg" }, ids[0]);
+    const views = getViews();
+    table.handle({ type: "emote", emote: "all_in" }, ids[0]);
+    expect(getViews()).toBe(views);
+    expect(table.viewFor(ids[0], "EM").seats[0].emote?.id).toBe("gg");
+  });
+
+  it("rejects unknown emotes and unseated senders", () => {
+    const { table, ids } = seatedTable(2);
+    expect(() =>
+      table.handle(
+        { type: "emote", emote: "nope" } as { type: "emote"; emote: "gg" },
+        ids[0],
+      ),
+    ).toThrow(/invalid emote/i);
+    expect(() =>
+      table.handle({ type: "emote", emote: "gg" }, "stranger"),
+    ).toThrow(/not seated/i);
+    expect(EMOTE_IDS).toEqual(["gg", "haha", "ship_it", "all_in"]);
   });
 });
