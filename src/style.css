@@ -1013,8 +1013,10 @@ button.seat__marker--bet {
   background: rgba(255, 226, 154, 0.16);
 }
 
-.btn--copy-done {
-  color: var(--accent);
+.btn--copy.btn--copy-done,
+.btn--copy.btn--copy-done:hover {
+  color: var(--accent-ink);
+  background: var(--accent);
   border-color: var(--accent);
 }
 
