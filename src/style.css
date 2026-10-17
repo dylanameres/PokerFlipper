@@ -1487,15 +1487,63 @@ html.large-cards .picker__card {
 
 .card--back[data-card-back="midnight"] {
   background:
-    radial-gradient(1px 1px at 20% 30%, #fff 50%, transparent 100%),
-    radial-gradient(1px 1px at 70% 15%, #fff 50%, transparent 100%),
-    radial-gradient(1.5px 1.5px at 55% 60%, #fff 50%, transparent 100%),
-    radial-gradient(1px 1px at 30% 80%, #dfe8ff 50%, transparent 100%),
-    radial-gradient(1px 1px at 85% 75%, #fff 50%, transparent 100%),
-    radial-gradient(1px 1px at 12% 55%, #cfd9ff 50%, transparent 100%),
-    radial-gradient(circle at 75% 25%, rgba(120, 150, 255, 0.35) 0%, transparent 45%),
+    radial-gradient(0.8px 0.8px at 38% 18%, rgba(255, 255, 255, 0.7) 50%, transparent 100%),
+    radial-gradient(0.8px 0.8px at 80% 52%, rgba(223, 232, 255, 0.7) 50%, transparent 100%),
+    radial-gradient(0.8px 0.8px at 18% 88%, rgba(255, 255, 255, 0.6) 50%, transparent 100%),
+    radial-gradient(0.8px 0.8px at 62% 90%, rgba(207, 217, 255, 0.6) 50%, transparent 100%),
+    radial-gradient(circle at 70% 22%, rgba(255, 244, 200, 0.28) 0%, rgba(120, 150, 255, 0.18) 22%, transparent 48%),
     linear-gradient(160deg, #0b1030 0%, #141a4a 60%, #1d1450 100%);
   border-color: rgba(170, 190, 255, 0.3);
+}
+
+/* Twinkling stars: brighten and bloom, then settle. */
+.card--back[data-card-back="midnight"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(1px 1px at 20% 30%, #fff 50%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 52% 58%, #fff 50%, transparent 100%),
+    radial-gradient(1px 1px at 30% 78%, #dfe8ff 50%, transparent 100%),
+    radial-gradient(1px 1px at 84% 76%, #fff 50%, transparent 100%),
+    radial-gradient(1px 1px at 12% 52%, #cfd9ff 50%, transparent 100%),
+    radial-gradient(1px 1px at 44% 40%, #fff 50%, transparent 100%);
+  opacity: 0.55;
+  animation: midnight-twinkle 5s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+/* Crescent moon: a lit disc with an offset bite masked out. */
+.card--back[data-card-back="midnight"]::after {
+  content: "";
+  position: absolute;
+  left: 56%;
+  top: 9%;
+  width: 28%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 40%, #fffbe8 0%, #f3e9c0 55%, #d9cc96 100%);
+  -webkit-mask: radial-gradient(circle at 72% 32%, transparent 46%, #000 48%);
+  mask: radial-gradient(circle at 72% 32%, transparent 46%, #000 48%);
+  pointer-events: none;
+}
+
+@keyframes midnight-twinkle {
+  from {
+    opacity: 0.55;
+    filter: none;
+  }
+  to {
+    opacity: 1;
+    filter: blur(0.3px) drop-shadow(0 0 1.5px rgba(220, 230, 255, 0.95));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card--back[data-card-back="midnight"]::before {
+    animation: none;
+    opacity: 0.85;
+  }
 }
 
 .card--back[data-card-back="sunset"] {
