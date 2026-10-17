@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BIG_BLIND,
+  CARD_BACK_IDS,
   MAX_ONLINE_PLAYERS,
   MAX_PLAYER_NAME_LENGTH,
   MIN_ONLINE_PLAYERS,
@@ -363,5 +364,13 @@ describe("PokerTable multiplayer framework", () => {
         ids[0],
       ),
     ).toThrow(/invalid card back/i);
+  });
+
+  it("accepts every card back id", () => {
+    const { table, ids } = seatedTable(2);
+    for (const id of CARD_BACK_IDS) {
+      table.handle({ type: "set_card_back", cardBack: id }, ids[0]);
+      expect(table.viewFor(ids[1], "CB").seats[0].cardBack).toBe(id);
+    }
   });
 });
