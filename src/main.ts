@@ -1663,7 +1663,7 @@ function renderTable(): string {
                 : ""
             }
             ${renderGearButton()}
-            <button type="button" class="btn btn--ghost" id="btn-setup">Setup</button>
+            <button type="button" class="btn btn--ghost" id="btn-setup">Back</button>
           </div>
         </header>
 
