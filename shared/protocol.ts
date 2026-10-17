@@ -19,8 +19,9 @@ export const MIN_BET = BIG_BLIND;
  * 8 = per-seat card backs (set_card_back).
  * 9 = more card backs (felt, noir, midnight, sunset).
  * 10 = zomba card back.
+ * 11 = inferno card back replaces felt.
  */
-export const ROOM_PROTOCOL = 10;
+export const ROOM_PROTOCOL = 11;
 
 /** Face-down card back designs shared by client + room server. */
 export const CARD_BACK_IDS = [
@@ -28,7 +29,7 @@ export const CARD_BACK_IDS = [
   "red",
   "arcane",
   "rainbow",
-  "felt",
+  "inferno",
   "noir",
   "midnight",
   "sunset",
