@@ -9,6 +9,7 @@ export {
   cardToString,
   fullDeck,
   makeCard,
+  rankLabel,
   RANKS,
   SUITS,
   type Card,

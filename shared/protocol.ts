@@ -23,8 +23,9 @@ export const MIN_BET = BIG_BLIND;
  * 12 = treasure card back replaces inferno.
  * 13 = seat emotes (emote).
  * 14 = nice_hand emote replaces all_in; server raises all_in bubbles.
+ * 15 = tilt + wow emotes.
  */
-export const ROOM_PROTOCOL = 14;
+export const ROOM_PROTOCOL = 15;
 
 /** Face-down card back designs shared by client + room server. */
 export const CARD_BACK_IDS = [
@@ -46,7 +47,14 @@ export function isCardBackId(v: unknown): v is CardBackId {
 }
 
 /** Quick table emotes shown as a chat bubble over the sender's seat. */
-export const EMOTE_IDS = ["gg", "haha", "ship_it", "nice_hand"] as const;
+export const EMOTE_IDS = [
+  "gg",
+  "haha",
+  "ship_it",
+  "nice_hand",
+  "tilt",
+  "wow",
+] as const;
 
 export type EmoteId = (typeof EMOTE_IDS)[number];
 
@@ -58,6 +66,8 @@ export const EMOTE_LABELS: Record<SeatBubbleId, string> = {
   haha: "Haha",
   ship_it: "Ship it",
   nice_hand: "Nice Hand",
+  tilt: "Tilt",
+  wow: "Wow",
   all_in: "All in",
 };
 

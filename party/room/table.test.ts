@@ -566,6 +566,13 @@ describe("PokerTable emotes", () => {
     expect(() =>
       table.handle({ type: "emote", emote: "gg" }, "stranger"),
     ).toThrow(/not seated/i);
-    expect(EMOTE_IDS).toEqual(["gg", "haha", "ship_it", "nice_hand"]);
+    expect(EMOTE_IDS).toEqual([
+      "gg",
+      "haha",
+      "ship_it",
+      "nice_hand",
+      "tilt",
+      "wow",
+    ]);
   });
 });
