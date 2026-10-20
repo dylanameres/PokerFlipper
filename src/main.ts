@@ -848,6 +848,12 @@ function dealRiver() {
   render();
 }
 
+function dealNextStreet() {
+  if (state.street === "holes") dealFlop();
+  else if (state.street === "flop") dealTurn();
+  else if (state.street === "turn") dealRiver();
+}
+
 let roomCodeCopied = false;
 let roomCodeCopiedTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -1907,20 +1913,10 @@ function renderTable(): string {
           </button>
           ${
             state.mode === "solo" || onlineStreetDeal
-              ? `<button type="button" class="btn" id="btn-deal-flop" ${
-                  canFlop ? "" : "disabled"
+              ? `<button type="button" class="btn" id="btn-deal-street" ${
+                  canFlop || canTurn || canRiver ? "" : "disabled"
                 }>
-            Deal flop
-          </button>
-          <button type="button" class="btn" id="btn-deal-turn" ${
-            canTurn ? "" : "disabled"
-          }>
-            Deal turn
-          </button>
-          <button type="button" class="btn" id="btn-deal-river" ${
-            canRiver ? "" : "disabled"
-          }>
-            Deal river
+            Deal
           </button>`
               : `<p class="actions__note">Board deals automatically after each betting round.</p>`
           }
@@ -2209,11 +2205,9 @@ function bindEvents() {
     submitRename();
   });
   document.getElementById("btn-deal-holes")?.addEventListener("click", dealHoles);
-  document.getElementById("btn-deal-flop")?.addEventListener("click", dealFlop);
-  document.getElementById("btn-deal-turn")?.addEventListener("click", dealTurn);
   document
-    .getElementById("btn-deal-river")
-    ?.addEventListener("click", dealRiver);
+    .getElementById("btn-deal-street")
+    ?.addEventListener("click", dealNextStreet);
 
   document.getElementById("btn-fold")?.addEventListener("click", () => {
     unlockAudio();
