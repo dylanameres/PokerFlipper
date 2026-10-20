@@ -1518,7 +1518,7 @@ function renderSetup(): string {
     <main class="page page--setup">
       <header class="brand brand--with-actions">
         <div>
-          <h1>PokerFlipper</h1>
+          <h1>Table simulator</h1>
           <p>Set up a table, deal hands, run the board.</p>
         </div>
         ${renderGearButton()}
@@ -1825,7 +1825,7 @@ function renderTable(): string {
       <div class="table-shell">
         <header class="table-bar">
           <div>
-            <h1>PokerFlipper</h1>
+            <h1>Table</h1>
             <p class="meta">${meta}</p>
             ${
               state.mode === "online" && roomCode
