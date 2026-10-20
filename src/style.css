@@ -1,20 +1,29 @@
 :root {
-  --bg: #0c1210;
-  --ink: #f2f2f2;
-  --muted: #9aab9f;
-  --accent: #3dd68c;
-  --accent-ink: #04140c;
-  --panel: #151c18;
-  --border: #2a3530;
-  --felt: #1a5c3e;
-  --felt-edge: #0f3d29;
-  --card-face: #f7f4ef;
+  --bg: #1c140f;
+  --ink: #f6ead8;
+  --muted: #c2a98c;
+  --accent: #eaa74a;
+  --accent-ink: #2a1708;
+  --panel: #2a1f18;
+  --panel-raised: #33261d;
+  --inset: #20170f;
+  --btn: #3b2c21;
+  --border: #4a3628;
+  --border-strong: #6b5140;
+  --felt: #255f3f;
+  --felt-center: #31794f;
+  --felt-edge: #173e29;
+  --wood: #6b3f22;
+  --wood-dark: #3e2414;
+  --card-face: #fbf5ea;
+  --win: #a9d8a0;
+  --loss: #f0a48c;
   --red: #c62828;
   --black: #1a1a1a;
   --blue: #1565c0;
   --green: #2e7d32;
-  --empty: rgba(255, 255, 255, 0.18);
-  font-family: "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
+  --empty: rgba(255, 240, 220, 0.2);
+  font-family: "Nunito", "Segoe UI", system-ui, sans-serif;
   color: var(--ink);
   background: var(--bg);
   color-scheme: dark;
@@ -28,8 +37,16 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(ellipse at 50% 0%, #1a2e24 0%, transparent 50%),
+    radial-gradient(ellipse 70% 45% at 50% -5%, rgba(255, 184, 102, 0.2) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 50% at 50% 110%, rgba(120, 60, 25, 0.25) 0%, transparent 70%),
     var(--bg);
+  background-attachment: fixed;
+}
+
+h1,
+h2 {
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 600;
 }
 
 button,
@@ -52,8 +69,9 @@ select {
 
 .brand h1 {
   margin: 0;
-  font-size: 1.7rem;
-  letter-spacing: -0.02em;
+  font-size: 2rem;
+  letter-spacing: -0.01em;
+  color: #fbe3bf;
 }
 
 .brand p {
@@ -77,7 +95,7 @@ select {
   grid-template-columns: 1fr 1fr;
   gap: 6px;
   padding: 4px;
-  background: #0e1411;
+  background: var(--inset);
   border-radius: 10px;
   border: 1px solid var(--border);
 }
@@ -116,7 +134,7 @@ select {
   letter-spacing: 0.12em;
   text-align: center;
   color: var(--ink);
-  background: #0e1411;
+  background: var(--inset);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 10px 12px;
@@ -125,10 +143,13 @@ select {
 .panel {
   display: grid;
   gap: 18px;
-  padding: 20px;
-  background: var(--panel);
+  padding: 22px;
+  background: linear-gradient(180deg, var(--panel-raised) 0%, var(--panel) 100%);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 18px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 220, 180, 0.06),
+    0 18px 40px rgba(0, 0, 0, 0.35);
 }
 
 fieldset {
@@ -156,7 +177,7 @@ legend {
   border: 1px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
-  background: #0e1411;
+  background: var(--inset);
 }
 
 .choice:has(input:checked) {
@@ -190,7 +211,7 @@ legend {
 
 .field select {
   color: var(--ink);
-  background: #0e1411;
+  background: var(--inset);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 10px 12px;
@@ -201,23 +222,44 @@ legend {
 
 .btn {
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px 16px;
+  border-radius: 12px;
+  padding: 12px 18px;
   cursor: pointer;
   color: var(--ink);
-  background: #1c2621;
-  font-weight: 600;
+  background: var(--btn);
+  font-weight: 700;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.1s ease;
+}
+
+.btn:not(:disabled):hover {
+  border-color: var(--border-strong);
+}
+
+.btn:not(:disabled):active {
+  transform: translateY(1px);
 }
 
 .btn:disabled {
-  opacity: 0.35;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .btn--primary {
   border-color: transparent;
-  background: var(--accent);
+  background: linear-gradient(180deg, #f2b863 0%, var(--accent) 100%);
   color: var(--accent-ink);
+  box-shadow:
+    0 2px 0 #a8691f,
+    0 6px 16px rgba(234, 167, 74, 0.2);
+}
+
+.btn--primary:not(:disabled):hover {
+  border-color: transparent;
+  background: linear-gradient(180deg, #f6c477 0%, #eeb05a 100%);
 }
 
 .btn--ghost {
@@ -309,7 +351,7 @@ legend {
   margin: 0;
   padding: 6px 8px;
   border-radius: 6px;
-  background: #0e1411;
+  background: var(--inset);
   border: 1px solid transparent;
   color: var(--ink);
   font-size: 0.8rem;
@@ -326,15 +368,15 @@ legend {
 }
 
 .history__line--win {
-  color: #6dffb0;
-  border-color: rgba(61, 214, 140, 0.45);
-  background: rgba(61, 214, 140, 0.1);
+  color: var(--win);
+  border-color: rgba(169, 216, 160, 0.4);
+  background: rgba(169, 216, 160, 0.08);
 }
 
 .history__line--loss {
-  color: #ff8f8f;
-  border-color: rgba(229, 57, 53, 0.45);
-  background: rgba(229, 57, 53, 0.1);
+  color: var(--loss);
+  border-color: rgba(240, 164, 140, 0.4);
+  background: rgba(240, 164, 140, 0.08);
 }
 
 .history__line--chop {
@@ -393,7 +435,7 @@ legend {
 
 .settings-panel {
   width: min(380px, 100%);
-  background: #1c2420;
+  background: var(--panel-raised);
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 20px;
@@ -435,7 +477,7 @@ legend {
   box-sizing: border-box;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: #0e1411;
+  background: var(--inset);
   color: var(--ink);
   padding: 10px 12px;
   font: inherit;
@@ -443,9 +485,9 @@ legend {
 }
 
 .rename-form__input:focus {
-  outline: 2px solid rgba(126, 217, 87, 0.55);
+  outline: 2px solid rgba(234, 167, 74, 0.55);
   outline-offset: 1px;
-  border-color: rgba(126, 217, 87, 0.65);
+  border-color: rgba(234, 167, 74, 0.65);
 }
 
 .rename-form__hint {
@@ -470,14 +512,14 @@ legend {
   padding: 14px;
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: #121916;
+  background: var(--inset);
   color: inherit;
   text-align: left;
   cursor: pointer;
 }
 
 .settings__row:hover {
-  border-color: #3d4d44;
+  border-color: var(--border-strong);
 }
 
 .settings__copy {
@@ -594,13 +636,13 @@ html.large-cards .card.card-back-option__preview {
   height: 31px;
   flex-shrink: 0;
   border-radius: 999px;
-  background: #3a3a3c;
+  background: #4a3a2e;
   transition: background 0.2s ease;
   pointer-events: none;
 }
 
 .ios-switch--on {
-  background: #34c759;
+  background: #8bb26a;
 }
 
 .ios-switch__knob {
@@ -622,7 +664,8 @@ html.large-cards .card.card-back-option__preview {
 
 .table-bar h1 {
   margin: 0;
-  font-size: 1.35rem;
+  font-size: 1.6rem;
+  color: #fbe3bf;
 }
 
 .meta {
@@ -637,12 +680,25 @@ html.large-cards .card.card-back-option__preview {
   aspect-ratio: 16 / 10;
   margin: 0 auto;
   border-radius: 50% / 42%;
+  border: 14px solid transparent;
   background:
-    radial-gradient(ellipse at 50% 40%, #227a52 0%, var(--felt) 55%, var(--felt-edge) 100%);
-  border: 10px solid #2b1d12;
+    radial-gradient(ellipse at 50% 35%, rgba(255, 220, 160, 0.12) 0%, transparent 55%) padding-box,
+    radial-gradient(ellipse at 50% 40%, var(--felt-center) 0%, var(--felt) 55%, var(--felt-edge) 100%)
+      padding-box,
+    repeating-linear-gradient(
+        100deg,
+        rgba(0, 0, 0, 0) 0 9px,
+        rgba(0, 0, 0, 0.12) 9px 11px,
+        rgba(255, 210, 160, 0.05) 11px 14px
+      )
+      border-box,
+    linear-gradient(160deg, #8a5430 0%, var(--wood) 45%, var(--wood-dark) 100%) border-box;
   box-shadow:
-    inset 0 0 40px rgba(0, 0, 0, 0.35),
-    0 18px 40px rgba(0, 0, 0, 0.45);
+    inset 0 0 0 2px rgba(0, 0, 0, 0.35),
+    inset 0 0 50px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(255, 210, 160, 0.12),
+    0 22px 50px rgba(0, 0, 0, 0.5),
+    0 0 120px rgba(255, 170, 80, 0.08);
 }
 
 .table-deck {
@@ -661,7 +717,7 @@ html.large-cards .card.card-back-option__preview {
 }
 
 .table-deck:focus-visible {
-  outline: 2px solid rgba(126, 217, 87, 0.7);
+  outline: 2px solid rgba(234, 167, 74, 0.7);
   outline-offset: 6px;
   border-radius: 8px;
 }
@@ -1168,7 +1224,7 @@ button.seat__marker--bet {
   gap: 12px 10px;
   padding: 8px 12px 12px;
   border-radius: 14px;
-  background: rgba(10, 16, 13, 0.92);
+  background: rgba(42, 31, 24, 0.97);
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   --emote-menu-from: translateX(-6px);
@@ -1267,9 +1323,9 @@ button.seat__marker--bet {
   font-size: 0.8rem;
   font-weight: 700;
   letter-spacing: 0.02em;
-  background: #1a2420;
+  background: var(--btn);
   border: 1px solid rgba(255, 255, 255, 0.14);
-  color: #e8f0eb;
+  color: var(--ink);
 }
 
 .btn--preset:hover {
@@ -1305,7 +1361,7 @@ button.seat__marker--bet {
   margin-top: 4px;
   font-size: 0.95rem;
   font-weight: 700;
-  color: #d7e3db;
+  color: #f6ead8;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
 }
 
@@ -1426,7 +1482,7 @@ button.seat__marker--bet {
 
 .outs__tab {
   border: 1px solid var(--border);
-  background: #0e1411;
+  background: var(--inset);
   color: var(--muted);
   border-radius: 999px;
   padding: 6px 10px;
@@ -1828,7 +1884,7 @@ html.large-cards .picker__card {
   width: min(340px, 92vw);
   height: 100%;
   overflow-y: auto;
-  background: #121a16;
+  background: var(--panel);
   border-right: 1px solid var(--border);
   padding: 18px 16px 28px;
   box-shadow: 12px 0 40px rgba(0, 0, 0, 0.45);
