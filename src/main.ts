@@ -6,6 +6,7 @@ import {
   isCardBackId,
   isEmoteId,
   isSeatBubbleId,
+  isStreetAction,
   MAX_ONLINE_PLAYERS,
   MAX_PLAYER_NAME_LENGTH,
   MIN_ONLINE_PLAYERS,
@@ -47,6 +48,11 @@ import {
 import { playSound, unlockAudio } from "./sounds";
 import { SUIT_GLYPH, SUIT_NAMES, suitColorClass as suitColorFor } from "./cardFace";
 import { createCardRain } from "./cardRain";
+import {
+  wagerPlacement,
+  wagerPresentation,
+  wagerTowardCenter,
+} from "./wagerPlace";
 
 type Screen = "setup" | "table";
 type Street = "predeal" | "holes" | "flop" | "turn" | "river";
@@ -411,6 +417,7 @@ function normalizeOnlineView(view: RoomView): RoomView {
       ...(emote ? { emote } : {}),
       chips: typeof s.chips === "number" ? s.chips : 0,
       bet: typeof s.bet === "number" ? s.bet : 0,
+      ...(isStreetAction(s.action) ? { action: s.action } : {}),
       folded: Boolean(s.folded),
       inHand: s.inHand !== undefined ? Boolean(s.inHand) : Boolean(s.filled),
       isButton: Boolean(s.isButton),
@@ -1334,6 +1341,15 @@ function seatStyle(index: number, total: number): string {
   return `left:${left.toFixed(2)}%;top:${top.toFixed(2)}%`;
 }
 
+/** Which edge of the cards faces the pot for this seat. */
+function seatWagerLayout(
+  layoutIndex: number,
+  total: number,
+): { placement: "above" | "below" | "left" | "right"; lower: boolean } {
+  const toward = wagerTowardCenter(layoutIndex, total);
+  return { placement: wagerPlacement(toward), lower: toward.y < 0 };
+}
+
 /** Online: rotate so hero sits at the bottom rail (layout index 0). */
 function onlineLayoutIndex(
   seat: number,
@@ -1749,8 +1765,8 @@ function renderTable(): string {
         !sittingOut &&
         typeof seatInfo.chips === "number"
           ? `<div class="seat__chips">${seatInfo.chips.toLocaleString()} chips${
-              seatInfo.bet > 0 ? ` · bet ${seatInfo.bet}` : ""
-            }${folded ? " · folded" : ""}</div>`
+              folded ? " · folded" : ""
+            }</div>`
           : sittingOut && seatInfo
             ? `<div class="seat__chips">${seatInfo.chips.toLocaleString()} chips · sitting out</div>`
             : "";
@@ -1759,14 +1775,36 @@ function renderTable(): string {
         online && online.yourSeat !== null
           ? onlineLayoutIndex(i, online.yourSeat, state.playerCount)
           : i;
+      const wager =
+        online && seatInfo?.filled && !sittingOut && !emptyOnline
+          ? wagerPresentation(seatInfo.action, seatInfo.bet)
+          : null;
+      const wagerLayout = wager
+        ? seatWagerLayout(layoutIndex, state.playerCount)
+        : null;
 
       const seatClassFull = [
         seatClass,
         emptyOnline ? "seat--empty" : "",
         sittingOut ? "seat--sitting-out" : "",
+        wagerLayout?.placement === "above" ? "seat--wager-above" : "",
+        wagerLayout?.placement === "below" ? "seat--wager-below" : "",
+        wagerLayout &&
+        (wagerLayout.placement === "left" || wagerLayout.placement === "right")
+          ? wagerLayout.lower
+            ? "seat--lower"
+            : "seat--upper"
+          : "",
       ]
         .filter(Boolean)
         .join(" ");
+      const wagerHtml = wager
+        ? `<div class="seat__wager seat__wager--${wager.kind} seat__wager--${wagerLayout!.placement}" data-seat-action="${wager.kind}">${
+            wager.kind === "check"
+              ? ""
+              : `<span class="seat__wager-chip" aria-hidden="true"></span>`
+          }<span>${escapeHtml(wager.label)}</span></div>`
+        : "";
 
       return `
         <div class="${seatClassFull}" style="${seatStyle(layoutIndex, state.playerCount)}" data-seat="${i}">
@@ -1797,6 +1835,7 @@ function renderTable(): string {
                     })
                     .join("")
             }
+            ${wagerHtml}
           </div>
           ${winner ? `<div class="seat__winner">Winner</div>` : ""}
           <div class="seat__label">${

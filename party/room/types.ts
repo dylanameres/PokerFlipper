@@ -1,4 +1,9 @@
-import type { CardBackId, SeatBubbleId, WireCard } from "../../shared/protocol";
+import type {
+  CardBackId,
+  SeatBubbleId,
+  StreetAction,
+  WireCard,
+} from "../../shared/protocol";
 
 /** Internal seat state for the room engine (not sent on the wire as-is). */
 export type RoomSeat = {
@@ -14,6 +19,8 @@ export type RoomSeat = {
   holes: WireCard[];
   chips: number;
   betStreet: number;
+  /** Last voluntary action this street; null for blinds and players yet to act. */
+  streetAction: StreetAction | null;
   /** Total chips committed to the pot this hand (all streets). */
   contributed: number;
   folded: boolean;
