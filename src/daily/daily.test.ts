@@ -69,6 +69,13 @@ describe("stats", () => {
     expect(winRate(s)).toBe(67);
   });
 
+  it("counts wins by number of guesses", () => {
+    let s = recordResult(EMPTY_STATS, "2026-10-20", true, 3);
+    s = recordResult(s, "2026-10-21", false, 6);
+    expect(s.guessCounts).toEqual([0, 0, 1, 0, 0, 0]);
+    expect(EMPTY_STATS.guessCounts).toEqual([0, 0, 0, 0, 0, 0]);
+  });
+
   it("restarts the streak after a skipped day", () => {
     let s = recordResult(EMPTY_STATS, "2026-10-20", true);
     s = recordResult(s, "2026-10-22", true);

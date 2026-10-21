@@ -7,6 +7,7 @@ export interface DailyProgress<Move = unknown> {
   day: string;
   status: DailyStatus;
   moves: Move[];
+  clueUsed?: boolean;
 }
 
 export interface DailyStats {
@@ -17,7 +18,11 @@ export interface DailyStats {
   /** Last day a result was recorded, used to keep streaks consecutive. */
   lastPlayedDay: string | null;
   lastWonDay: string | null;
+  /** `guessCounts[n - 1]` = puzzles won on guess n. */
+  guessCounts: number[];
 }
+
+export const GUESS_SLOTS = 6;
 
 export const EMPTY_STATS: DailyStats = {
   played: 0,
@@ -26,6 +31,7 @@ export const EMPTY_STATS: DailyStats = {
   maxStreak: 0,
   lastPlayedDay: null,
   lastWonDay: null,
+  guessCounts: Array<number>(GUESS_SLOTS).fill(0),
 };
 
 /** Records a finished puzzle. Recording the same day twice is a no-op. */
@@ -33,8 +39,13 @@ export function recordResult(
   stats: DailyStats,
   day: string,
   won: boolean,
+  guesses?: number,
 ): DailyStats {
   if (stats.lastPlayedDay === day) return stats;
+  const guessCounts = stats.guessCounts.slice();
+  if (won && guesses && guesses >= 1 && guesses <= GUESS_SLOTS) {
+    guessCounts[guesses - 1] += 1;
+  }
   const continues = won && stats.lastWonDay === addDays(day, -1);
   const currentStreak = won ? (continues ? stats.currentStreak + 1 : 1) : 0;
   return {
@@ -44,6 +55,7 @@ export function recordResult(
     maxStreak: Math.max(stats.maxStreak, currentStreak),
     lastPlayedDay: day,
     lastWonDay: won ? day : stats.lastWonDay,
+    guessCounts,
   };
 }
 
@@ -67,7 +79,10 @@ export function loadStats(): DailyStats {
   try {
     const raw = localStorage.getItem(STATS_KEY);
     if (!raw) return { ...EMPTY_STATS };
-    return { ...EMPTY_STATS, ...(JSON.parse(raw) as Partial<DailyStats>) };
+    const parsed = { ...EMPTY_STATS, ...(JSON.parse(raw) as Partial<DailyStats>) };
+    const counts = Array.isArray(parsed.guessCounts) ? parsed.guessCounts : [];
+    parsed.guessCounts = EMPTY_STATS.guessCounts.map((_, i) => Number(counts[i]) || 0);
+    return parsed;
   } catch {
     return { ...EMPTY_STATS };
   }
