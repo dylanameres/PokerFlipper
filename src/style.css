@@ -307,6 +307,18 @@ select {
   color: var(--accent);
 }
 
+.daily-clue--found {
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid #4caf5c;
+  background: rgba(76, 175, 92, 0.16);
+  color: #a9e2a6;
+}
+
+.daily-clue--found strong {
+  color: #d3f0c8;
+}
+
 .daily-status {
   margin: 16px 0 0;
   text-align: center;

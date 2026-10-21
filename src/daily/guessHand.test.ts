@@ -4,6 +4,7 @@ import { categoryOf, evaluate5, HandCategory } from "../poker/evaluator";
 import {
   ALL_CATEGORIES,
   cardKnowledge,
+  categoryFound,
   categoryForPuzzle,
   handOfCategory,
   isSolved,
@@ -79,6 +80,12 @@ describe("scoring", () => {
 
   it("prefers a same-color pairing for the color hint", () => {
     expect(marks("As Ad 2c 3c 4c", "Ac Ah Kd Kc 5s")).toBe("Y:red Y:black X X X");
+  });
+
+  it("finds the hand type once any guess matches it", () => {
+    const answer = cards("8c 8d 8h 8s 4s");
+    expect(categoryFound([cards("As Ah Kd Kc 5s")], answer)).toBe(false);
+    expect(categoryFound([cards("As Ah Kd Kc 5s"), cards("2s 2h 2d 2c Ks")], answer)).toBe(true);
   });
 
   it("solves only when all five match", () => {

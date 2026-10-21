@@ -132,6 +132,16 @@ export function scoreGuess(guess: readonly Card[], answer: readonly Card[]): Car
   return feedback;
 }
 
+export function handCategory(hand: readonly Card[]): HandCategory {
+  return categoryOf(evaluate5(hand.slice()));
+}
+
+/** True once any guess is the same hand type as the answer. */
+export function categoryFound(guesses: readonly Card[][], answer: readonly Card[]): boolean {
+  const target = handCategory(answer);
+  return guesses.some((g) => handCategory(g) === target);
+}
+
 export function isSolved(feedback: readonly CardFeedback[]): boolean {
   return feedback.length === HAND_SIZE && feedback.every((f) => f.mark === "green");
 }

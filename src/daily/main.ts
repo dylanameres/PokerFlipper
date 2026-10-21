@@ -5,6 +5,7 @@ import { dayKey, formatCountdown, formatDayKey, msUntilNextDay } from "./calenda
 import {
   cardKnowledge,
   categoryForPuzzle,
+  categoryFound,
   HAND_SIZE,
   handOfCategory,
   isSolved,
@@ -275,8 +276,12 @@ function renderRows(): string {
 }
 
 function renderClue(): string {
+  const name = HAND_CATEGORY_NAMES[state.category];
+  if (categoryFound(state.progress.moves, state.answer)) {
+    return `<p class="daily-clue daily-clue--found">✓ Hand type: <strong>${name}</strong></p>`;
+  }
   if (clueVisible()) {
-    return `<p class="daily-clue">Hand type: <strong>${HAND_CATEGORY_NAMES[state.category]}</strong></p>`;
+    return `<p class="daily-clue">Hand type: <strong>${name}</strong></p>`;
   }
   return `<button type="button" class="btn btn--ghost daily-clue-btn" id="btn-clue">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3z"/></svg>
@@ -397,7 +402,7 @@ function renderHelpDialog(): string {
           <li><span class="daily-key daily-key--yellow"></span>There's a <strong>King</strong>, but not the ♠. The dot shows the hidden King's color: it's black, so it's the ♣.</li>
           <li><span class="daily-key daily-key--gray"></span><strong>7♦</strong> isn't in the hand.</li>
         </ul>
-        <p>Stuck? The <strong>Clue</strong> button reveals the hand type (pair, flush, and so on).</p>
+        <p>Stuck? The <strong>Clue</strong> button reveals the hand type (pair, flush, and so on). Guess a hand of the right type and it's revealed in green for free.</p>
         <p class="daily-help__muted">Everyone gets the same hand. A new one unlocks at midnight in your time zone.</p>
       </div>
     `,
