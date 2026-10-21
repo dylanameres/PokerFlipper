@@ -2378,6 +2378,26 @@ html.large-cards .picker__card {
     aspect-ratio: 1 / 1.05;
     border-radius: 48% / 42%;
     --rail-width: 11px;
+    --deck-h: 48px;
+    /* Room for the deck, which sits below the table on narrow screens. */
+    margin-bottom: calc(var(--deck-h) + 16px);
+  }
+
+  html.large-cards .felt {
+    --deck-h: 82px;
+  }
+
+  /* The board spans nearly the full felt width here, so the deck moves off it. */
+  .table-deck {
+    left: 12%;
+    top: calc(100% + var(--rail-width) + 10px);
+    transform: translateX(-50%);
+  }
+
+  .table-deck__stack,
+  .table-deck__card {
+    width: 34px;
+    height: 48px;
   }
 
   .card {
