@@ -68,6 +68,10 @@ interface AppState {
   /** Card picker target (hole or board), or null when closed. */
   picking: PickingTarget | null;
   settingsOpen: boolean;
+  /** Settings modal is showing the wide table-color picker. */
+  tableThemesOpen: boolean;
+  /** Local-only felt + rail color scheme. */
+  tableTheme: TableThemeId;
   fourColorDeck: boolean;
   /** Solo only: show equity % and outs UI. */
   showEquity: boolean;
@@ -119,6 +123,21 @@ const CARD_BACKS: { id: CardBackId; label: string; detail: string }[] = [
   { id: "zomba", label: "Zomba", detail: "Titanium white" },
 ];
 
+const TABLE_THEMES = [
+  { id: "classic", label: "Classic", detail: "Green felt · walnut rail" },
+  {
+    id: "midnight-purple",
+    label: "Midnight Purple",
+    detail: "Purple felt · royal gold rail",
+  },
+] as const;
+
+type TableThemeId = (typeof TABLE_THEMES)[number]["id"];
+
+function isTableThemeId(value: unknown): value is TableThemeId {
+  return TABLE_THEMES.some((t) => t.id === value);
+}
+
 interface SavedSettings {
   fourColorDeck: boolean;
   showEquity: boolean;
@@ -126,6 +145,7 @@ interface SavedSettings {
   cardBack: CardBackId;
   deckCardBack: CardBackId;
   soundEnabled: boolean;
+  tableTheme: TableThemeId;
 }
 
 function loadSettings(): SavedSettings {
@@ -136,6 +156,7 @@ function loadSettings(): SavedSettings {
     cardBack: "blue",
     deckCardBack: "blue",
     soundEnabled: true,
+    tableTheme: "classic",
   };
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
@@ -150,6 +171,9 @@ function loadSettings(): SavedSettings {
         ? parsed.deckCardBack
         : "blue",
       soundEnabled: parsed.soundEnabled !== false,
+      tableTheme: isTableThemeId(parsed.tableTheme)
+        ? parsed.tableTheme
+        : "classic",
     };
   } catch {
     return defaults;
@@ -167,6 +191,7 @@ function saveSettings() {
         cardBack: state.cardBack,
         deckCardBack: state.deckCardBack,
         soundEnabled: state.soundEnabled,
+        tableTheme: state.tableTheme,
       } satisfies SavedSettings),
     );
   } catch {
@@ -190,6 +215,8 @@ const state: AppState = {
   outsSeat: null,
   picking: null,
   settingsOpen: false,
+  tableThemesOpen: false,
+  tableTheme: saved.tableTheme,
   fourColorDeck: saved.fourColorDeck,
   showEquity: saved.showEquity,
   largeCards: saved.largeCards,
@@ -1037,8 +1064,59 @@ function renderDeckBackPanel(): string {
   `;
 }
 
+function renderTableThemeRow(): string {
+  const current = TABLE_THEMES.find((t) => t.id === state.tableTheme)!;
+  return `
+    <button type="button" class="settings__row" id="btn-open-table-themes">
+      <span class="settings__copy">
+        <strong>Table color</strong>
+        <small>${current.label}</small>
+      </span>
+      <span class="table-swatch table-swatch--mini" data-table-theme="${current.id}" aria-hidden="true">
+        <span class="table-swatch__felt"></span>
+      </span>
+    </button>
+  `;
+}
+
+function renderTableThemePicker(): string {
+  const options = TABLE_THEMES.map((theme) => {
+    const isSelected = theme.id === state.tableTheme;
+    return `
+      <button
+        type="button"
+        class="table-theme-option${isSelected ? " table-theme-option--selected" : ""}"
+        data-table-theme-option="${theme.id}"
+        aria-pressed="${isSelected}"
+      >
+        <span class="table-swatch" data-table-theme="${theme.id}" aria-hidden="true">
+          <span class="table-swatch__felt"></span>
+        </span>
+        <span class="table-theme-option__copy">
+          <strong>${theme.label}</strong>
+          <small>${theme.detail}</small>
+        </span>
+      </button>
+    `;
+  }).join("");
+  return `
+    <div class="settings-backdrop" id="settings-backdrop">
+      <div class="settings-panel settings-panel--wide" id="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <header class="settings__head">
+          <button type="button" class="outs__close" id="btn-close-table-themes" aria-label="Back to settings">‹</button>
+          <h2 id="settings-title">Table color</h2>
+          <button type="button" class="outs__close" id="btn-close-settings" aria-label="Close">×</button>
+        </header>
+        <p class="settings__hint">Only you see this — the table felt and rail on your screen.</p>
+        <div class="table-theme-grid">${options}</div>
+      </div>
+    </div>
+  `;
+}
+
 function renderSettingsPanel(): string {
   if (!state.settingsOpen) return "";
+  if (state.tableThemesOpen) return renderTableThemePicker();
   return `
     <div class="settings-backdrop" id="settings-backdrop">
       <div class="settings-panel" id="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
@@ -1047,6 +1125,7 @@ function renderSettingsPanel(): string {
           <button type="button" class="outs__close" id="btn-close-settings" aria-label="Close">×</button>
         </header>
         <div class="settings__list">
+          ${renderTableThemeRow()}
           ${settingsSwitchRow(
             "fourColorDeck",
             "4 color deck",
@@ -1998,6 +2077,7 @@ function hintForStreet(street: Street): string {
 
 function render() {
   document.documentElement.classList.toggle("large-cards", state.largeCards);
+  document.documentElement.dataset.tableTheme = state.tableTheme;
   delete document.documentElement.dataset.cardBack;
   const dealKeys =
     state.screen === "table" ? currentDealKeys() : ([] as string[]);
@@ -2044,18 +2124,40 @@ function toggleSetting(
 function bindSettingsEvents() {
   document.getElementById("btn-settings")?.addEventListener("click", () => {
     state.settingsOpen = true;
+    state.tableThemesOpen = false;
     render();
   });
   document.getElementById("btn-close-settings")?.addEventListener("click", () => {
     state.settingsOpen = false;
+    state.tableThemesOpen = false;
     render();
   });
   document.getElementById("settings-backdrop")?.addEventListener("click", (e) => {
     if (e.target === e.currentTarget) {
       state.settingsOpen = false;
+      state.tableThemesOpen = false;
       render();
     }
   });
+  document.getElementById("btn-open-table-themes")?.addEventListener("click", () => {
+    state.tableThemesOpen = true;
+    render();
+  });
+  document.getElementById("btn-close-table-themes")?.addEventListener("click", () => {
+    state.tableThemesOpen = false;
+    render();
+  });
+  document
+    .querySelectorAll<HTMLButtonElement>("[data-table-theme-option]")
+    .forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.tableThemeOption;
+        if (!isTableThemeId(id) || id === state.tableTheme) return;
+        state.tableTheme = id;
+        saveSettings();
+        render();
+      });
+    });
   document.querySelectorAll<HTMLButtonElement>("[data-setting]").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.preventDefault();

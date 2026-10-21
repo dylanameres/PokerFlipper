@@ -10,11 +10,6 @@
   --btn: #3b2c21;
   --border: #4a3628;
   --border-strong: #6b5140;
-  --felt: #255f3f;
-  --felt-center: #31794f;
-  --felt-edge: #173e29;
-  --wood: #6b3f22;
-  --wood-dark: #3e2414;
   --card-face: #fbf5ea;
   --win: #a9d8a0;
   --loss: #f0a48c;
@@ -27,6 +22,32 @@
   color: var(--ink);
   background: var(--bg);
   color-scheme: dark;
+}
+
+/* Table themes: set on <html> for the live table and on each picker swatch. */
+:root,
+[data-table-theme="classic"] {
+  --felt: #255f3f;
+  --felt-center: #31794f;
+  --felt-edge: #173e29;
+  --felt-glow: rgba(255, 220, 160, 0.12);
+  --rail-light: #8a5430;
+  --rail: #6b3f22;
+  --rail-dark: #3e2414;
+  --rail-grain: rgba(0, 0, 0, 0.12);
+  --rail-sheen: rgba(255, 210, 160, 0.05);
+}
+
+[data-table-theme="midnight-purple"] {
+  --felt: #34195e;
+  --felt-center: #4d2a85;
+  --felt-edge: #1b0c36;
+  --felt-glow: rgba(200, 170, 255, 0.12);
+  --rail-light: #fbe7a1;
+  --rail: #d4a62a;
+  --rail-dark: #7d5a10;
+  --rail-grain: rgba(120, 80, 0, 0.12);
+  --rail-sheen: rgba(255, 245, 200, 0.18);
 }
 
 * {
@@ -457,6 +478,86 @@ legend {
   font-size: 1.2rem;
 }
 
+.settings-panel--wide {
+  width: min(760px, 100%);
+}
+
+.settings-panel--wide .settings__head h2 {
+  margin-right: auto;
+}
+
+.table-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+}
+
+.table-theme-option {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--inset);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    transform 0.1s ease;
+}
+
+.table-theme-option:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+
+.table-theme-option--selected,
+.table-theme-option--selected:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.table-theme-option__copy strong {
+  display: block;
+  font-size: 0.95rem;
+}
+
+.table-theme-option__copy small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.table-swatch {
+  display: block;
+}
+
+.table-swatch__felt {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border: 8px solid transparent;
+  border-radius: 50% / 42%;
+  background: var(--table-surface);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+    inset 0 0 20px rgba(0, 0, 0, 0.35),
+    0 6px 14px rgba(0, 0, 0, 0.4);
+}
+
+.table-swatch--mini {
+  flex-shrink: 0;
+  width: 64px;
+}
+
+.table-swatch--mini .table-swatch__felt {
+  border-width: 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
 .settings__list {
   display: grid;
   gap: 10px;
@@ -674,6 +775,22 @@ html.large-cards .card.card-back-option__preview {
   font-size: 0.85rem;
 }
 
+.felt,
+.table-swatch__felt {
+  --table-surface:
+    radial-gradient(ellipse at 50% 35%, var(--felt-glow) 0%, transparent 55%) padding-box,
+    radial-gradient(ellipse at 50% 40%, var(--felt-center) 0%, var(--felt) 55%, var(--felt-edge) 100%)
+      padding-box,
+    repeating-linear-gradient(
+        100deg,
+        transparent 0 9px,
+        var(--rail-grain) 9px 11px,
+        var(--rail-sheen) 11px 14px
+      )
+      border-box,
+    linear-gradient(160deg, var(--rail-light) 0%, var(--rail) 45%, var(--rail-dark) 100%) border-box;
+}
+
 .felt {
   position: relative;
   width: min(100%, 860px);
@@ -681,18 +798,7 @@ html.large-cards .card.card-back-option__preview {
   margin: 0 auto;
   border-radius: 50% / 42%;
   border: 14px solid transparent;
-  background:
-    radial-gradient(ellipse at 50% 35%, rgba(255, 220, 160, 0.12) 0%, transparent 55%) padding-box,
-    radial-gradient(ellipse at 50% 40%, var(--felt-center) 0%, var(--felt) 55%, var(--felt-edge) 100%)
-      padding-box,
-    repeating-linear-gradient(
-        100deg,
-        rgba(0, 0, 0, 0) 0 9px,
-        rgba(0, 0, 0, 0.12) 9px 11px,
-        rgba(255, 210, 160, 0.05) 11px 14px
-      )
-      border-box,
-    linear-gradient(160deg, #8a5430 0%, var(--wood) 45%, var(--wood-dark) 100%) border-box;
+  background: var(--table-surface);
   box-shadow:
     inset 0 0 0 2px rgba(0, 0, 0, 0.35),
     inset 0 0 50px rgba(0, 0, 0, 0.35),
