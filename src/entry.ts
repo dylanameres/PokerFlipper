@@ -1,8 +1,22 @@
 import { renderSiteHeader } from "./site/header";
-import { routeForPath } from "./site/routes";
+import { canonicalUrl, routeForPath, type Route } from "./site/routes";
+
+// index.html serves every path, so its static tags describe the table page;
+// Google indexes the rendered DOM, so swap them to match the current route.
+function applyRouteMeta(route: Route) {
+  document.title = route.title;
+  const url = canonicalUrl(route);
+  const set = (selector: string, attr: string, value: string) =>
+    document.querySelector(selector)?.setAttribute(attr, value);
+  set('meta[name="description"]', "content", route.description);
+  set('link[rel="canonical"]', "href", url);
+  set('meta[property="og:url"]', "content", url);
+  set('meta[property="og:title"]', "content", route.title);
+  set('meta[property="og:description"]', "content", route.description);
+}
 
 const route = routeForPath(window.location.pathname);
-document.title = route.title;
+applyRouteMeta(route);
 document.documentElement.dataset.route = route.id;
 document.getElementById("site-header")!.innerHTML = renderSiteHeader(route);
 
