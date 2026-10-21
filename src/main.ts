@@ -45,6 +45,7 @@ import {
   type GameType,
 } from "./poker";
 import { playSound, unlockAudio } from "./sounds";
+import { createCardRain } from "./cardRain";
 
 type Screen = "setup" | "table";
 type Street = "predeal" | "holes" | "flop" | "turn" | "river";
@@ -2075,7 +2076,32 @@ function hintForStreet(street: Street): string {
   }
 }
 
+function shuffled<T>(items: readonly T[]): T[] {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+const RAIN_FACES = shuffle(fullDeck());
+// Every back style shows up at least once before backs start repeating.
+const RAIN_BACKS = [...shuffled(CARD_BACKS), ...shuffled(CARD_BACKS)].map((b) => b.id);
+
+const menuCardRain = createCardRain((i) => {
+  const n = Math.floor(i / 2);
+  if (i % 2 === 1) {
+    return renderCard(null, {
+      faceDown: true,
+      cardBack: RAIN_BACKS[n % RAIN_BACKS.length],
+    });
+  }
+  return renderCard(RAIN_FACES[n % RAIN_FACES.length]);
+});
+
 function render() {
+  menuCardRain.setVisible(state.screen === "setup");
   document.documentElement.classList.toggle("large-cards", state.largeCards);
   document.documentElement.dataset.tableTheme = state.tableTheme;
   delete document.documentElement.dataset.cardBack;

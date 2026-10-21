@@ -97,6 +97,8 @@ select {
 }
 
 .site-header {
+  position: relative;
+  z-index: 2;
   height: var(--site-header-h);
   border-bottom: 1px solid var(--border);
   background: var(--panel);
@@ -287,7 +289,54 @@ select {
 
 /* ----- Setup ----- */
 
+/* Main-menu background: cards falling like a slow waterfall. */
+.card-rain {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.card-rain[hidden] {
+  display: none;
+}
+
+.card-rain__drop {
+  --s: calc(0.8 + var(--depth) * 0.75);
+  position: absolute;
+  top: 0;
+  left: var(--x);
+  z-index: calc(var(--depth) * 100);
+  opacity: calc(0.22 + var(--depth) * 0.4);
+  filter: brightness(calc(0.7 + var(--depth) * 0.3));
+  will-change: transform;
+  animation: card-rain-fall var(--dur) linear var(--delay) infinite;
+}
+
+.card-rain__drop .card {
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.45);
+}
+
+@keyframes card-rain-fall {
+  from {
+    transform: translate3d(-50%, -20vh, 0) rotate(var(--rot0)) scale(var(--s));
+  }
+  to {
+    transform: translate3d(calc(-50% + var(--drift)), 110vh, 0) rotate(var(--rot1))
+      scale(var(--s));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-rain {
+    display: none;
+  }
+}
+
 .page--setup {
+  position: relative;
+  z-index: 1;
   max-width: 440px;
   margin: 0 auto;
   padding: 48px 20px 64px;
