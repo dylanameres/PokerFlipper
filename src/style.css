@@ -89,7 +89,7 @@ select {
 .site-header {
   height: var(--site-header-h);
   border-bottom: 1px solid var(--border);
-  background: rgba(12, 18, 16, 0.85);
+  background: var(--panel);
 }
 
 .site-header__inner {
@@ -136,7 +136,7 @@ select {
 
 .site-nav__link:hover {
   color: var(--ink);
-  background: #1c2621;
+  background: var(--btn);
 }
 
 .site-nav__link:focus-visible {
@@ -194,7 +194,7 @@ select {
   padding: 32px 20px;
   border-radius: 16px;
   border: 1px solid var(--felt-edge);
-  background: radial-gradient(ellipse at 50% 40%, #217049 0%, var(--felt) 60%, var(--felt-edge) 100%);
+  background: radial-gradient(ellipse at 50% 40%, var(--felt-center) 0%, var(--felt) 60%, var(--felt-edge) 100%);
   box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.35);
 }
 
