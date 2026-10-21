@@ -99,6 +99,7 @@ export class PokerTable {
       holes: emptyHoles(this.holes()),
       chips: STARTING_CHIPS,
       betStreet: 0,
+      streetAction: null,
       contributed: 0,
       folded: false,
       acted: false,
@@ -204,6 +205,7 @@ export class PokerTable {
     seat.holes = emptyHoles(this.holes());
     seat.chips = STARTING_CHIPS;
     seat.betStreet = 0;
+    seat.streetAction = null;
     seat.contributed = 0;
     seat.folded = false;
     seat.acted = false;
@@ -300,6 +302,7 @@ export class PokerTable {
           seat.holes = emptyHoles(n);
           seat.folded = false;
           seat.betStreet = 0;
+          seat.streetAction = null;
           seat.contributed = 0;
           seat.acted = false;
           seat.inHand = seat.connectionId !== null;
@@ -362,6 +365,7 @@ export class PokerTable {
         const s = this.seats[seat];
         const toCall = Math.max(0, this.currentBet - s.betStreet);
         if (toCall > 0) this.putChips(s, toCall);
+        s.streetAction = toCall > 0 ? "call" : "check";
         s.acted = true;
         if (this.afterAction()) this.notify();
         return;
@@ -389,7 +393,10 @@ export class PokerTable {
         if (amount > maxTotal) throw new Error("Not enough chips");
         const add = amount - s.betStreet;
         if (add < 0) throw new Error("Invalid bet");
+        const facing = this.currentBet;
         this.putChips(s, add);
+        const opened = s.betStreet > facing;
+        s.streetAction = opened ? (facing > 0 ? "raise" : "bet") : "call";
         this.currentBet = s.betStreet;
         s.acted = true;
         for (let i = 0; i < this.seats.length; i++) {
@@ -400,6 +407,7 @@ export class PokerTable {
             continue;
           }
           other.acted = false;
+          if (opened && other.streetAction === "check") other.streetAction = null;
         }
         if (this.afterAction()) this.notify();
         return;
@@ -569,6 +577,7 @@ export class PokerTable {
         connected: connectedSeat,
         chips: s.chips,
         bet: s.betStreet,
+        ...(s.streetAction ? { action: s.streetAction } : {}),
         folded: s.folded,
         inHand: occupiedSeat ? s.inHand : false,
         // Blind/button markers use deal-time seats; never re-derive after leaves.
@@ -651,6 +660,7 @@ export class PokerTable {
     for (const seat of this.seats) {
       seat.holes = emptyHoles(this.holes());
       seat.betStreet = 0;
+      seat.streetAction = null;
       seat.contributed = 0;
       seat.folded = false;
       seat.acted = false;
@@ -873,6 +883,7 @@ export class PokerTable {
     this.currentBet = 0;
     for (const seat of this.seats) {
       seat.betStreet = 0;
+      seat.streetAction = null;
       seat.acted = false;
     }
     this.markAllInSeatsActed();

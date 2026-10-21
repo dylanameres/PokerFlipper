@@ -161,6 +161,50 @@ describe("PokerTable multiplayer framework", () => {
     expect(table.viewFor(ids[0], "3ACT").actionSeat).toBe(2); // BB last
   });
 
+  it("labels bets, raises, and calls on the seat that acted", () => {
+    const { table, ids } = seatedTable(3);
+    table.handle({ type: "deal_hands" }, ids[0]);
+    const dealt = table.viewFor(ids[0], "W");
+    // Blinds are chips in front, not a voluntary bet or raise.
+    expect(dealt.seats[1].bet).toBe(SMALL_BLIND);
+    expect(dealt.seats[1].action).toBeUndefined();
+    expect(dealt.seats[2].bet).toBe(BIG_BLIND);
+    expect(dealt.seats[2].action).toBeUndefined();
+
+    table.handle({ type: "bet", amount: 150 }, ids[0]);
+    expect(table.viewFor(ids[0], "W").seats[0]).toMatchObject({
+      action: "raise",
+      bet: 150,
+    });
+
+    table.handle({ type: "call" }, ids[1]);
+    expect(table.viewFor(ids[0], "W").seats[1]).toMatchObject({
+      action: "call",
+      bet: 150,
+    });
+
+    table.handle({ type: "call" }, ids[2]);
+    const flop = table.viewFor(ids[0], "W");
+    expect(flop.street).toBe("flop");
+    expect(flop.seats.every((s) => s.bet === 0 && s.action === undefined)).toBe(
+      true,
+    );
+    expect(flop.actionSeat).toBe(1);
+
+    table.handle({ type: "call" }, ids[1]);
+    expect(table.viewFor(ids[0], "W").seats[1].action).toBe("check");
+
+    table.handle({ type: "bet", amount: 100 }, ids[2]);
+    const bet = table.viewFor(ids[0], "W");
+    expect(bet.seats[2]).toMatchObject({ action: "bet", bet: 100 });
+    expect(bet.seats[1].action).toBeUndefined();
+
+    table.handle({ type: "bet", amount: 300 }, ids[0]);
+    const raised = table.viewFor(ids[0], "W");
+    expect(raised.seats[0]).toMatchObject({ action: "raise", bet: 300 });
+    expect(raised.seats[2].action).toBe("bet");
+  });
+
   it("sits late joiners out of the current hand with a clean seat", () => {
     const { table, ids } = seatedTable(2);
     table.handle({ type: "deal_hands" }, ids[0]);

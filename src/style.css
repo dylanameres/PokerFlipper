@@ -1650,6 +1650,169 @@ button.seat__marker--bet {
   justify-content: center;
 }
 
+.seat__cards {
+  position: relative;
+}
+
+/* Street action hugs the edge of the cards that faces the pot.
+   Hero: above the cards. Across the table: below theirs, on the felt.
+   Side seats: beside the cards, so the plaque does not land on the board. */
+.seat__wager {
+  position: absolute;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px 5px 7px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  line-height: 1;
+  pointer-events: none;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.28);
+  box-shadow:
+    0 0 0 2px rgba(0, 0, 0, 0.5),
+    0 8px 16px rgba(0, 0, 0, 0.42);
+}
+
+.seat__wager--above {
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translate(-50%, -36px);
+}
+
+.seat__wager--below {
+  left: 50%;
+  top: calc(100% + 8px);
+  transform: translateX(-50%);
+}
+
+.seat__wager--right {
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.seat__wager--left {
+  right: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+@media (max-width: 700px) {
+  .seat__wager {
+    gap: 4px;
+    padding: 3px 8px 3px 4px;
+    font-size: 0.68rem;
+  }
+
+  .seat__wager-chip {
+    width: 12px;
+    height: 12px;
+  }
+
+  .seat__wager--above {
+    transform: translate(-50%, -28px);
+  }
+
+  /* The round phone felt has no gap between a side seat and the flop.
+     Park those plaques on the rail side of the cards, growing away from center. */
+  .seat--lower .seat__wager--right,
+  .seat--lower .seat__wager--left {
+    top: calc(100% + 2px);
+    bottom: auto;
+    transform: none;
+  }
+
+  .seat--lower .seat__wager--right,
+  .seat--upper .seat__wager--right {
+    left: auto;
+    right: 0;
+  }
+
+  .seat--lower .seat__wager--left,
+  .seat--upper .seat__wager--left {
+    left: 0;
+    right: auto;
+  }
+
+  .seat--upper .seat__wager--right,
+  .seat--upper .seat__wager--left {
+    top: auto;
+    bottom: calc(100% + 2px);
+    transform: none;
+  }
+
+  .seat--lower .seat__label {
+    margin-top: 26px;
+  }
+}
+
+/* Name and stack step aside so a plaque below the cards stays on the felt. */
+.seat--wager-below .seat__label {
+  margin-top: 42px;
+}
+
+.seat__wager--check {
+  padding: 6px 12px;
+}
+
+.seat__wager-chip {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex: none;
+  border: 2px dashed rgba(255, 255, 255, 0.8);
+  box-shadow:
+    inset 0 0 0 2px rgba(0, 0, 0, 0.18),
+    0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.seat__wager--bet,
+.seat__wager--chips {
+  color: #1a1208;
+  background: radial-gradient(circle at 30% 20%, #fff9e6 0%, #f0d78c 46%, #c9a227 100%);
+}
+
+.seat__wager--bet .seat__wager-chip,
+.seat__wager--chips .seat__wager-chip {
+  background: radial-gradient(circle at 35% 30%, #fff, #f0e2a8 55%, #d4af37 100%);
+}
+
+.seat__wager--raise {
+  color: #1a1208;
+  background: radial-gradient(circle at 30% 20%, #ffe8cc 0%, #ffb74d 42%, #ef6c00 100%);
+  box-shadow:
+    0 0 0 2px rgba(0, 0, 0, 0.5),
+    0 0 0 4px rgba(255, 152, 0, 0.55),
+    0 8px 16px rgba(0, 0, 0, 0.42);
+}
+
+.seat__wager--raise .seat__wager-chip {
+  background: radial-gradient(circle at 35% 30%, #fff3e0, #ff9800 60%, #e65100 100%);
+}
+
+.seat__wager--call {
+  color: #fff;
+  background: radial-gradient(circle at 30% 20%, #90caf9 0%, #1e88e5 55%, #0d47a1 100%);
+}
+
+.seat__wager--call .seat__wager-chip {
+  background: radial-gradient(circle at 35% 30%, #e3f2fd, #64b5f6 60%, #1565c0 100%);
+}
+
+.seat__wager--check {
+  color: #f6ead8;
+  background: rgba(18, 14, 10, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.45),
+    0 8px 16px rgba(0, 0, 0, 0.42);
+}
+
 .seat {
   position: absolute;
   transform: translate(-50%, -50%);
@@ -1796,6 +1959,15 @@ button.seat__marker--bet {
 /* Clear the absolutely positioned WINNER label that sits above winning seats. */
 .seat--winner .seat__emote {
   bottom: calc(100% + 52px);
+}
+
+/* Hero wager sits above the cards, in the same lane as the winner label. */
+.seat--wager-above.seat--winner .seat__winner {
+  transform: translate(-50%, calc(-100% - 52px));
+}
+
+.seat--wager-above.seat--winner .seat__emote {
+  bottom: calc(100% + 100px);
 }
 
 .seat__emote--all-in {

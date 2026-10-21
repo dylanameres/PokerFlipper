@@ -24,8 +24,9 @@ export const MIN_BET = BIG_BLIND;
  * 13 = seat emotes (emote).
  * 14 = nice_hand emote replaces all_in; server raises all_in bubbles.
  * 15 = tilt + wow emotes.
+ * 16 = per-seat street action (bet / raise / call / check).
  */
-export const ROOM_PROTOCOL = 15;
+export const ROOM_PROTOCOL = 16;
 
 /** Face-down card back designs shared by client + room server. */
 export const CARD_BACK_IDS = [
@@ -84,6 +85,13 @@ export function isSeatBubbleId(v: unknown): v is SeatBubbleId {
   return v === "all_in" || isEmoteId(v);
 }
 
+/** Last thing a seat did on the current betting street. */
+export type StreetAction = "bet" | "raise" | "call" | "check";
+
+export function isStreetAction(v: unknown): v is StreetAction {
+  return v === "bet" || v === "raise" || v === "call" || v === "check";
+}
+
 /** Max seats in an online room (Hold'em-friendly). */
 export const MAX_ONLINE_PLAYERS = 6;
 /** Host may deal once this many players are seated. */
@@ -138,6 +146,12 @@ export interface SeatPublic {
   emote?: SeatEmote;
   chips: number;
   bet: number;
+  /**
+   * Last voluntary action this street.
+   * Absent for blinds and for seats that have not acted yet — `bet` still
+   * holds the chips already in front of them.
+   */
+  action?: StreetAction;
   folded: boolean;
   /**
    * True when this seat was dealt into the current hand.
