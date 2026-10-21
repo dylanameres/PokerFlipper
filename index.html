@@ -3,7 +3,43 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PokerFlipper</title>
+    <title>PokerFlipper – Free Texas Hold'em &amp; Omaha Table Simulator</title>
+    <meta
+      name="description"
+      content="Deal Texas Hold'em and Omaha hands solo, or play online with friends using a room code. Free, no signup, runs in your browser."
+    />
+    <link rel="canonical" href="https://poker-flipper.vercel.app/" />
+    <meta name="theme-color" content="#1c140f" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="PokerFlipper" />
+    <meta property="og:url" content="https://poker-flipper.vercel.app/" />
+    <meta property="og:title" content="PokerFlipper – Free Hold'em &amp; Omaha Table Simulator" />
+    <meta
+      property="og:description"
+      content="Deal Texas Hold'em and Omaha hands solo, or play online with friends using a room code. Free, no signup."
+    />
+    <meta property="og:image" content="https://poker-flipper.vercel.app/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="PokerFlipper – Hold'em &amp; Omaha table simulator" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "PokerFlipper",
+        "url": "https://poker-flipper.vercel.app/",
+        "description": "Free Texas Hold'em and Omaha table simulator. Deal hands solo or play online with friends using a room code.",
+        "applicationCategory": "GameApplication",
+        "operatingSystem": "Any",
+        "browserRequirements": "Requires JavaScript",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -15,6 +51,28 @@
   <body>
     <header id="site-header" class="site-header"></header>
     <div id="app"></div>
+    <footer class="site-about">
+      <div class="site-about__inner">
+        <h1 class="site-about__title">PokerFlipper: a free Texas Hold'em &amp; Omaha table simulator</h1>
+        <p>
+          PokerFlipper deals poker hands right in your browser. Pick Texas Hold'em or Omaha, deal the hole
+          cards, then flip the flop, turn and river to see who wins. Finished hands are saved to the hand
+          history.
+        </p>
+        <h2>Play poker online with friends</h2>
+        <p>
+          Create a private room and share the room code. The deck is shuffled on the server, so neither
+          browser ever sees undealt cards, and each player's hole cards stay hidden until the river.
+          No account or download needed.
+        </p>
+        <h2>Daily poker puzzle</h2>
+        <p>
+          <a href="/daily">PokerFlipper Daily</a> is a new poker puzzle every day: guess the hidden
+          five-card hand in six tries, Wordle-style. Everyone gets the same hand. Solve it, keep your
+          streak going, and share your result.
+        </p>
+      </div>
+    </footer>
     <script type="module" src="/src/entry.ts"></script>
   </body>
 </html>
