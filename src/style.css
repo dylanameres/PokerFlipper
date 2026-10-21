@@ -36,6 +36,11 @@
   --rail-dark: #3e2414;
   --rail-highlight: rgba(255, 214, 170, 0.45);
   --rail-shade: rgba(20, 8, 0, 0.6);
+  --winner-solid: #f0d78c;
+  --winner-fill: linear-gradient(180deg, #fff4c4 0%, #e8c35a 45%, #b8860b 100%);
+  --winner-glow: rgba(232, 195, 90, 0.5);
+  --winner-glow-strong: rgba(255, 220, 120, 0.75);
+  --winner-outline: rgba(232, 195, 90, 0.55);
 }
 
 [data-table-theme="midnight-purple"] {
@@ -48,6 +53,11 @@
   --rail-dark: #7d5a10;
   --rail-highlight: rgba(255, 246, 205, 0.6);
   --rail-shade: rgba(70, 40, 0, 0.6);
+  --winner-solid: #f4f1ff;
+  --winner-fill: linear-gradient(180deg, #ffffff 0%, #ebe6ff 45%, #b4a6e0 100%);
+  --winner-glow: rgba(214, 196, 255, 0.55);
+  --winner-glow-strong: rgba(236, 226, 255, 0.9);
+  --winner-outline: rgba(230, 222, 255, 0.7);
 }
 
 * {
@@ -1511,12 +1521,12 @@ button.seat__marker--bet {
   font-size: clamp(1.35rem, 2.4vw, 1.85rem);
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #f0d78c;
-  background: linear-gradient(180deg, #fff4c4 0%, #e8c35a 45%, #b8860b 100%);
+  color: var(--winner-solid);
+  background: var(--winner-fill);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 0 10px rgba(232, 195, 90, 0.55))
+  filter: drop-shadow(0 0 10px var(--winner-glow))
     drop-shadow(0 2px 2px rgba(0, 0, 0, 0.55));
   line-height: 1.1;
   animation: winner-shine 2.4s ease-in-out infinite;
@@ -1525,17 +1535,17 @@ button.seat__marker--bet {
 @keyframes winner-shine {
   0%,
   100% {
-    filter: drop-shadow(0 0 8px rgba(232, 195, 90, 0.4))
+    filter: drop-shadow(0 0 8px var(--winner-glow))
       drop-shadow(0 2px 2px rgba(0, 0, 0, 0.55));
   }
   50% {
-    filter: drop-shadow(0 0 16px rgba(255, 220, 120, 0.75))
+    filter: drop-shadow(0 0 16px var(--winner-glow-strong))
       drop-shadow(0 2px 2px rgba(0, 0, 0, 0.55));
   }
 }
 
 .seat--winner .seat__cards {
-  outline: 2px solid rgba(232, 195, 90, 0.55);
+  outline: 2px solid var(--winner-outline);
   outline-offset: 4px;
   border-radius: 8px;
 }
