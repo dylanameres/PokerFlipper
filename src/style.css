@@ -240,25 +240,249 @@ select {
 .daily-board {
   display: grid;
   justify-items: center;
-  gap: 18px;
-  padding: 32px 20px;
+  gap: 8px;
+  padding: 18px 12px;
   border-radius: 16px;
   border: 1px solid var(--felt-edge);
   background: radial-gradient(ellipse at 50% 40%, var(--felt-center) 0%, var(--felt) 60%, var(--felt-edge) 100%);
   box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.35);
 }
 
-.daily-board__cards {
+.daily-row {
   display: flex;
+  justify-content: center;
   gap: 8px;
 }
 
-.daily-board__note {
-  margin: 0;
-  text-align: center;
-  color: rgba(242, 242, 242, 0.8);
+.daily-row--future {
+  opacity: 0.45;
+}
+
+/* Two classes so the daily size beats the table's large-cards and mobile sizes. */
+.card.daily-card {
+  position: relative;
+  width: 52px;
+  height: 72px;
+}
+
+.daily-card .card__rank {
+  font-size: 1.25rem;
+}
+
+.daily-card .card__suit {
+  font-size: 1.1rem;
+}
+
+.daily-slot {
+  cursor: pointer;
+}
+
+.daily-slot:hover,
+.daily-slot:focus-visible {
+  outline: 2px solid rgba(234, 167, 74, 0.6);
+  outline-offset: 2px;
+}
+
+.daily-slot--active,
+.daily-slot--active:hover {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.card.daily-card--green {
+  background: #d3f0c8;
+  box-shadow: 0 0 0 3px #4caf5c, 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.card.daily-card--yellow {
+  background: #f8e6a6;
+  box-shadow: 0 0 0 3px #e2b33a, 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.card.daily-card--gray {
+  opacity: 0.4;
+  filter: grayscale(0.7);
+}
+
+.daily-pip {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px #fff8e6;
+}
+
+.daily-pip--red {
+  background: #c62828;
+}
+
+.daily-pip--black {
+  background: #1a1a1a;
+}
+
+.daily-clue-row {
+  display: flex;
+  justify-content: center;
+  min-height: 44px;
+  margin-bottom: 12px;
+}
+
+.daily-clue-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
   font-size: 0.9rem;
+}
+
+.daily-clue {
+  margin: 0;
+  align-self: center;
+  color: var(--muted);
+}
+
+.daily-clue strong {
+  color: var(--accent);
+}
+
+.daily-clue--found {
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid #4caf5c;
+  background: rgba(76, 175, 92, 0.16);
+  color: #a9e2a6;
+}
+
+.daily-clue--found strong {
+  color: #d3f0c8;
+}
+
+.daily-status {
+  margin: 16px 0 0;
+  text-align: center;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.daily-status--won {
+  color: var(--win);
+}
+
+.daily-status--lost {
+  color: var(--loss);
+  margin-bottom: 10px;
+}
+
+.daily-error {
+  margin: 6px 0 0;
+  text-align: center;
+}
+
+.daily-actions {
+  margin-top: 14px;
+}
+
+.daily-actions .btn {
+  min-width: 110px;
+}
+
+.picker__card--green {
+  box-shadow: 0 0 0 3px #4caf5c;
+}
+
+.picker__card--yellow {
+  box-shadow: 0 0 0 3px #e2b33a;
+}
+
+.picker__card--gray {
+  opacity: 0.35;
+}
+
+.daily-help__example {
+  margin: 4px 0 12px;
+}
+
+.daily-help__list {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
   line-height: 1.45;
+}
+
+.daily-help__list li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.daily-key {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  margin-top: 3px;
+  border-radius: 3px;
+}
+
+.daily-key--green {
+  background: #4caf5c;
+}
+
+.daily-key--yellow {
+  background: #e2b33a;
+}
+
+.daily-key--gray {
+  background: #6b625a;
+}
+
+.daily-dist__title {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.daily-dist {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 18px;
+}
+
+.daily-dist__row {
+  display: grid;
+  grid-template-columns: 14px 1fr;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.8rem;
+}
+
+.daily-dist__bar {
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--btn);
+  text-align: right;
+  font-weight: 700;
+}
+
+.daily-dist__bar--today {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+@media (max-width: 420px) {
+  .card.daily-card {
+    width: 46px;
+    height: 64px;
+  }
+
+  .daily-row {
+    gap: 6px;
+  }
 }
 
 .daily-next {

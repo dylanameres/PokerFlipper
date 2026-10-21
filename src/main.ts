@@ -45,6 +45,7 @@ import {
   type GameType,
 } from "./poker";
 import { playSound, unlockAudio } from "./sounds";
+import { SUIT_GLYPH, SUIT_NAMES, suitColorClass as suitColorFor } from "./cardFace";
 import { createCardRain } from "./cardRain";
 
 type Screen = "setup" | "table";
@@ -948,22 +949,10 @@ function backToSetup() {
 
 /* ---------- rendering ---------- */
 
-const SUIT_GLYPH: Record<string, string> = {
-  s: "\u2660",
-  h: "\u2665",
-  d: "\u2666",
-  c: "\u2663",
-};
 
 /** Suit color class: classic red/black, or 4-color (s black, h red, d blue, c green). */
 function suitColorClass(suit: string): string {
-  if (state.fourColorDeck) {
-    if (suit === "s") return "card--spade";
-    if (suit === "h") return "card--heart";
-    if (suit === "d") return "card--diamond";
-    return "card--club";
-  }
-  return suit === "h" || suit === "d" ? "card--red" : "card--black";
+  return suitColorFor(suit, state.fourColorDeck);
 }
 
 function renderGearButton(): string {
@@ -2015,12 +2004,6 @@ function renderCardPicker(): string {
   if (!state.picking) return "";
   const target = state.picking;
   const blocked = usedCards(target);
-  const suitNames: Record<string, string> = {
-    s: "Spades",
-    h: "Hearts",
-    d: "Diamonds",
-    c: "Clubs",
-  };
   const boardLabels = ["Flop 1", "Flop 2", "Flop 3", "Turn", "River"];
   const subtitle =
     target.kind === "hole"
@@ -2039,7 +2022,7 @@ function renderCardPicker(): string {
       </button>`;
     }).join("");
     return `<div class="picker__suit">
-      <div class="picker__suit-label">${SUIT_GLYPH[suit]} ${suitNames[suit]}</div>
+      <div class="picker__suit-label">${SUIT_GLYPH[suit]} ${SUIT_NAMES[suit]}</div>
       <div class="picker__row">${buttons}</div>
     </div>`;
   }).join("");
