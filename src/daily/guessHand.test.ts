@@ -93,14 +93,15 @@ describe("scoring", () => {
     expect(isSolved(scoreGuess(cards("As Ah Kd Kc 5h"), cards("5s Kc Kd Ah As")))).toBe(false);
   });
 
-  it("remembers the best mark per card and shares squares grouped by color", () => {
+  it("remembers the best mark per card and shares squares in guess order", () => {
     const answer = cards("As Ah Kd Kc 5s");
     const first = scoreGuess(cards("Ad 2c 3c 4c 6c"), answer);
-    const second = scoreGuess(cards("Ad As 2c 3c 4c"), answer);
+    const second = scoreGuess(cards("Ad Kd 9c 4c 3c"), answer);
     const known = cardKnowledge([first, second]);
-    expect(known.get(parseCard("As"))).toBe("green");
+    expect(known.get(parseCard("Kd"))).toBe("green");
     expect(known.get(parseCard("Ad"))).toBe("yellow");
     expect(known.get(parseCard("2c"))).toBe("gray");
-    expect(shareRow(second)).toBe("🟩🟨⬛⬛⬛");
+    // Rank order is Ad, Kd, 9c, 4c, 3c — yellow stays on the ace, not grouped left.
+    expect(shareRow(second)).toBe("🟨🟩⬛⬛⬛");
   });
 });

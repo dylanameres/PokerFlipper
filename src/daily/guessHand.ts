@@ -162,11 +162,7 @@ export function cardKnowledge(history: readonly CardFeedback[][]): Map<Card, Mar
 
 const SHARE_SQUARE: Record<Mark, string> = { green: "🟩", yellow: "🟨", gray: "⬛" };
 
-/** Squares grouped green → yellow → gray, since card order carries no meaning. */
+/** One square per card, in the same order as the guess row. */
 export function shareRow(feedback: readonly CardFeedback[]): string {
-  return feedback
-    .map((f) => f.mark)
-    .sort((a, b) => MARK_ORDER[a] - MARK_ORDER[b])
-    .map((m) => SHARE_SQUARE[m])
-    .join("");
+  return feedback.map((f) => SHARE_SQUARE[f.mark]).join("");
 }
